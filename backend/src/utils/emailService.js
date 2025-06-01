@@ -3,7 +3,7 @@ const nodemailer = require('nodemailer');
 console.log('🔄 Configuration du service email...');
 
 // Configuration du transporteur SMTP Gmail
-const transporter = nodemailer.createTransport({
+const transporter = nodemailer.createTransporter({
   host: process.env.EMAIL_HOST,
   port: parseInt(process.env.EMAIL_PORT),
   secure: false, // true pour 465, false pour autres ports
@@ -24,6 +24,14 @@ transporter.verify((error, success) => {
     console.log('✅ Serveur SMTP prêt pour l\'envoi d\'emails');
   }
 });
+
+// FONCTION UTILITAIRE POUR L'URL DE BASE
+const getBaseUrl = () => {
+  if (process.env.NODE_ENV === 'production') {
+    return 'https://mobile-app-backend-production-5d60.up.railway.app';
+  }
+  return 'http://localhost:3000';
+};
 
 /**
  * Template d'email de vérification
@@ -169,7 +177,8 @@ const getResetPasswordEmailTemplate = (firstName, resetUrl) => {
  */
 const sendVerificationEmail = async (user, verificationToken) => {
   try {
-    const verificationUrl = `http://localhost:3000/api/auth/verify-email?token=${verificationToken}`;
+    // CORRECTION : Utilise l'URL Railway en production
+    const verificationUrl = `${getBaseUrl()}/api/auth/verify-email?token=${verificationToken}`;
     const emailTemplate = getVerificationEmailTemplate(user.firstName, verificationUrl);
 
     const mailOptions = {
@@ -195,7 +204,8 @@ const sendVerificationEmail = async (user, verificationToken) => {
  */
 const sendResetPasswordEmail = async (user, resetToken) => {
   try {
-    const resetUrl = `http://localhost:3000/api/auth/reset-password?token=${resetToken}`;
+    // CORRECTION : Utilise l'URL Railway en production
+    const resetUrl = `${getBaseUrl()}/api/auth/reset-password?token=${resetToken}`;
     const emailTemplate = getResetPasswordEmailTemplate(user.firstName, resetUrl);
 
     const mailOptions = {
@@ -229,8 +239,9 @@ const testEmailConfig = async () => {
         <h2>✅ Test de configuration réussi !</h2>
         <p>Si vous recevez cet email, la configuration SMTP fonctionne correctement.</p>
         <p><strong>Timestamp :</strong> ${new Date().toISOString()}</p>
+        <p><strong>Base URL :</strong> ${getBaseUrl()}</p>
       `,
-      text: 'Test de configuration email réussi ! Timestamp: ' + new Date().toISOString()
+      text: `Test de configuration email réussi ! Timestamp: ${new Date().toISOString()}, Base URL: ${getBaseUrl()}`
     };
 
     const info = await transporter.sendMail(testMailOptions);
