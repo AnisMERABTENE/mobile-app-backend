@@ -47,6 +47,7 @@ router.get('/status', (req, res) => {
       'POST /api/auth/forgot-password',
       'POST /api/auth/reset-password',
       'POST /api/auth/verify-email',
+      'GET /api/auth/verify-email (lien email)',
       'GET /api/auth/profile (protected)',
       'POST /api/auth/logout (protected)'
     ]
@@ -103,10 +104,85 @@ router.post('/reset-password',
 
 /**
  * @route   POST /api/auth/verify-email
- * @desc    Vérification de l'adresse email
+ * @desc    Vérification de l'adresse email (via app mobile)
  * @access  Public
  */
 router.post('/verify-email', verifyEmail);
+
+/**
+ * @route   GET /api/auth/verify-email
+ * @desc    Vérification de l'adresse email (via lien email)
+ * @access  Public
+ */
+router.get('/verify-email', async (req, res) => {
+  try {
+    const { token } = req.query;
+    
+    if (!token) {
+      return res.status(400).send(`
+        <html>
+          <head><title>Erreur de vérification</title></head>
+          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+            <h1 style="color: #ef4444;">❌ Erreur</h1>
+            <p>Token de vérification manquant.</p>
+            <p><a href="#" onclick="window.close()">Fermer cette fenêtre</a></p>
+          </body>
+        </html>
+      `);
+    }
+
+    // Utiliser le même contrôleur que pour POST
+    // On simule une requête POST
+    req.body = { token };
+    
+    // Mock de la réponse pour capturer le résultat
+    const mockRes = {
+      status: (code) => mockRes,
+      json: (data) => {
+        if (data.message && data.message.includes('succès')) {
+          res.send(`
+            <html>
+              <head><title>Email vérifié</title></head>
+              <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+                <h1 style="color: #10b981;">✅ Email vérifié avec succès !</h1>
+                <p>Votre compte est maintenant activé.</p>
+                <p>Vous pouvez retourner à l'application mobile.</p>
+                <p><a href="#" onclick="window.close()">Fermer cette fenêtre</a></p>
+              </body>
+            </html>
+          `);
+        } else {
+          res.status(400).send(`
+            <html>
+              <head><title>Erreur de vérification</title></head>
+              <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+                <h1 style="color: #ef4444;">❌ Erreur de vérification</h1>
+                <p>${data.error || 'Token invalide ou expiré'}</p>
+                <p><a href="#" onclick="window.close()">Fermer cette fenêtre</a></p>
+              </body>
+            </html>
+          `);
+        }
+      }
+    };
+
+    // Appeler le contrôleur
+    await verifyEmail(req, mockRes);
+
+  } catch (error) {
+    console.error('❌ Erreur vérification email GET:', error);
+    res.status(500).send(`
+      <html>
+        <head><title>Erreur serveur</title></head>
+        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+          <h1 style="color: #ef4444;">❌ Erreur serveur</h1>
+          <p>Une erreur est survenue lors de la vérification.</p>
+          <p><a href="#" onclick="window.close()">Fermer cette fenêtre</a></p>
+        </body>
+      </html>
+    `);
+  }
+});
 
 // ===================
 // ROUTES GOOGLE OAUTH
