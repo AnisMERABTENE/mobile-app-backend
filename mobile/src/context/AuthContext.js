@@ -166,14 +166,15 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Inscription
+   * Inscription - CORRIGÉ
    */
   const register = async (userData) => {
     try {
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
-      const result = await apiRequest.post('/auth/register', userData);
+      // CORRECTION : Utilise AuthService au lieu d'apiRequest
+      const result = await AuthService.register(userData);
 
       if (result.success) {
         const { user, token } = result.data;
@@ -209,7 +210,7 @@ export const AuthProvider = ({ children }) => {
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
-      const result = await apiRequest.post('/auth/forgot-password', { email });
+      const result = await AuthService.forgotPassword(email);
 
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
 
@@ -235,7 +236,7 @@ export const AuthProvider = ({ children }) => {
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
 
       // Appeler l'API de déconnexion
-      await apiRequest.post('/auth/logout');
+      await AuthService.logout();
 
       // Nettoyer le stockage local
       await StorageService.logout();
@@ -255,7 +256,7 @@ export const AuthProvider = ({ children }) => {
    */
   const updateProfile = async (updateData) => {
     try {
-      const result = await apiRequest.put('/auth/profile', updateData);
+      const result = await AuthService.updateProfile(updateData);
 
       if (result.success) {
         const updatedUser = result.data.user;
