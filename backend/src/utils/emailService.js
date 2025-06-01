@@ -3,7 +3,7 @@ const nodemailer = require('nodemailer');
 console.log('🔄 Configuration du service email...');
 
 // Configuration du transporteur SMTP Gmail
-const transporter = nodemailer.createTransporter({
+const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST,
   port: parseInt(process.env.EMAIL_PORT),
   secure: false, // true pour 465, false pour autres ports
