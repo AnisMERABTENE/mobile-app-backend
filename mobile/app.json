@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Mobile App",
+    "slug": "mobile-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#667eea"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mobileapp.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#667eea"
+      },
+      "package": "com.mobileapp.app"
+    },
+    "plugins": [],
+    "extra": {
+      "eas": {
+        "projectId": "b458eb82-4050-449c-b1c0-a4c98242744f"
+      }
+    }
+  }
+}
