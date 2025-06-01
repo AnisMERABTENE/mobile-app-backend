@@ -4,15 +4,8 @@ import Constants from 'expo-constants';
 
 // Configuration de l'URL de base de l'API
 const getBaseURL = () => {
-  // En développement, utilise ton IP local ou localhost
-  if (__DEV__) {
-    // Pour simulateur iOS et Android, localhost fonctionne
-    // Pour appareil physique, remplace par ton IP local (ex: 192.168.1.100)
-    return 'http://localhost:3000/api';
-  }
-  
-  // En production, utilise l'URL de ton serveur déployé
-  return 'https://ton-serveur-production.com/api';
+  // Utilise toujours l'URL Railway déployée
+  return 'https://mobile-app-backend-production-5d60.up.railway.app/api';
 };
 
 // Créer l'instance axios
@@ -182,12 +175,12 @@ const handleApiError = (error) => {
 // Fonction pour tester la connexion à l'API
 export const testApiConnection = async () => {
   try {
-    console.log('🧪 Test de connexion à l\'API...');
+    console.log('🧪 Test de connexion à l\'API Railway...');
     const response = await api.get('/test');
-    console.log('✅ Connexion API réussie:', response.data);
+    console.log('✅ Connexion API Railway réussie:', response.data);
     return { success: true, data: response.data };
   } catch (error) {
-    console.error('❌ Échec du test de connexion API:', error.message);
+    console.error('❌ Échec du test de connexion API Railway:', error.message);
     return handleApiError(error);
   }
 };
