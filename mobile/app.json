@@ -11,18 +11,26 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mobileapp.app"
+      "bundleIdentifier": "com.mobileapp.app",
+      "scheme": "mobileapp"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#667eea"
       },
-      "package": "com.mobileapp.app"
+      "package": "com.mobileapp.app",
+      "scheme": "mobileapp"
     },
+    "scheme": "mobileapp",
     "plugins": [],
     "extra": {
       "eas": {
         "projectId": "b458eb82-4050-449c-b1c0-a4c98242744f"
+      },
+      "googleOAuth": {
+        "iosClientId": "1090312299997-hv7ic64it62ftednl1ft3sc39uugjr62.apps.googleusercontent.com",
+        "androidClientId": "1090312299997-hv7ic64it62ftednl1ft3sc39uugjr62.apps.googleusercontent.com",
+        "webClientId": "1090312299997-hv7ic64it62ftednl1ft3sc39uugjr62.apps.googleusercontent.com"
       }
     }
   }

@@ -41,6 +41,49 @@ class AuthService {
   }
 
   /**
+   * Vérifier un token avec le backend (utile après Google OAuth)
+   */
+  async verifyTokenWithBackend(token) {
+    try {
+      console.log('🔍 Vérification du token avec le backend...');
+      
+      // Temporairement stocker le token pour la requête
+      const currentToken = await SecureStore.getItemAsync('authToken');
+      await SecureStore.setItemAsync('authToken', token);
+      
+      const result = await apiRequest.get('/auth/profile');
+      
+      // Restaurer l'ancien token si la vérification échoue
+      if (!result.success && currentToken) {
+        await SecureStore.setItemAsync('authToken', currentToken);
+      }
+
+      if (result.success) {
+        console.log('✅ Token valide, profil récupéré');
+        return {
+          success: true,
+          data: {
+            user: result.data.user,
+            token: token
+          }
+        };
+      } else {
+        console.log('❌ Token invalide');
+        return {
+          success: false,
+          error: result.error || 'Token invalide',
+        };
+      }
+    } catch (error) {
+      console.error('❌ Erreur vérification token:', error);
+      return {
+        success: false,
+        error: 'Erreur de vérification',
+      };
+    }
+  }
+
+  /**
    * Inscription
    */
   async register(userData) {

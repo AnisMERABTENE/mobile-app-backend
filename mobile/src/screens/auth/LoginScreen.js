@@ -21,7 +21,7 @@ import Loading from '../../components/Loading';
 import colors, { getGradientString } from '../../styles/colors';
 
 const LoginScreen = ({ navigation }) => {
-  const { login, isLoading, error, clearError, getRememberedEmail } = useAuth();
+  const { login, loginWithGoogle, isLoading, error, clearError, getRememberedEmail } = useAuth();
   
   const [formData, setFormData] = useState({
     email: '',
@@ -29,6 +29,7 @@ const LoginScreen = ({ navigation }) => {
   });
   const [rememberMe, setRememberMe] = useState(false);
   const [formErrors, setFormErrors] = useState({});
+  const [googleLoading, setGoogleLoading] = useState(false);
   
   const passwordRef = useRef(null);
 
@@ -103,12 +104,32 @@ const LoginScreen = ({ navigation }) => {
     }
   };
 
-  const handleGoogleLogin = () => {
-    Alert.alert(
-      'Connexion Google',
-      'La connexion Google sera implémentée dans la prochaine version',
-      [{ text: 'OK' }]
-    );
+  const handleGoogleLogin = async () => {
+    try {
+      setGoogleLoading(true);
+      console.log('🔵 Tentative de connexion Google...');
+      
+      const result = await loginWithGoogle();
+      
+      if (result.success) {
+        console.log('✅ Connexion Google réussie');
+        // La navigation se fera automatiquement via AuthContext
+      } else if (result.cancelled) {
+        console.log('ℹ️ Connexion Google annulée par l\'utilisateur');
+        // Ne pas afficher d'erreur si l'utilisateur a annulé
+      } else {
+        console.error('❌ Échec connexion Google:', result.error);
+        Alert.alert(
+          'Erreur de connexion Google', 
+          result.error || 'Une erreur est survenue lors de la connexion avec Google'
+        );
+      }
+    } catch (error) {
+      console.error('❌ Erreur Google login:', error);
+      Alert.alert('Erreur', 'Une erreur inattendue s\'est produite');
+    } finally {
+      setGoogleLoading(false);
+    }
   };
 
   const handleForgotPassword = () => {
@@ -119,7 +140,7 @@ const LoginScreen = ({ navigation }) => {
     navigation.navigate('Register');
   };
 
-  if (isLoading) {
+  if (isLoading && !googleLoading) {
     return <Loading fullScreen gradient text="Connexion en cours..." />;
   }
 
@@ -149,6 +170,25 @@ const LoginScreen = ({ navigation }) => {
           contentContainerStyle={styles.formContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Google Login Button - EN PREMIER */}
+          <Button
+            title="Continuer avec Google"
+            variant="google"
+            icon="logo-google"
+            onPress={handleGoogleLogin}
+            loading={googleLoading}
+            fullWidth
+            gradient={false}
+            style={styles.googleButton}
+          />
+
+          {/* Divider */}
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>ou</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
           {/* Email Input */}
           <Input
             label="Adresse email"
@@ -207,24 +247,6 @@ const LoginScreen = ({ navigation }) => {
             style={styles.loginButton}
           />
 
-          {/* Divider */}
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>ou</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {/* Google Login Button */}
-          <Button
-            title="Continuer avec Google"
-            variant="google"
-            icon="logo-google"
-            onPress={handleGoogleLogin}
-            fullWidth
-            gradient={false}
-            style={styles.googleButton}
-          />
-
           {/* Register Link */}
           <View style={styles.registerContainer}>
             <Text style={styles.registerText}>
@@ -280,6 +302,24 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingTop: 32,
   },
+  googleButton: {
+    marginBottom: 24,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.gray[300],
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 14,
+    color: colors.text.secondary,
+  },
   optionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -301,24 +341,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   loginButton: {
-    marginBottom: 24,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.gray[300],
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    fontSize: 14,
-    color: colors.text.secondary,
-  },
-  googleButton: {
     marginBottom: 32,
   },
   registerContainer: {

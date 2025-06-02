@@ -21,7 +21,7 @@ import Loading from '../../components/Loading';
 import colors, { getGradientString } from '../../styles/colors';
 
 const RegisterScreen = ({ navigation }) => {
-  const { register, isLoading, error, clearError } = useAuth();
+  const { register, loginWithGoogle, isLoading, error, clearError } = useAuth();
   
   const [formData, setFormData] = useState({
     firstName: '',
@@ -32,6 +32,7 @@ const RegisterScreen = ({ navigation }) => {
   });
   const [formErrors, setFormErrors] = useState({});
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   
   const lastNameRef = useRef(null);
   const emailRef = useRef(null);
@@ -131,11 +132,39 @@ const RegisterScreen = ({ navigation }) => {
     }
   };
 
+  const handleGoogleRegister = async () => {
+    try {
+      setGoogleLoading(true);
+      console.log('🔵 Tentative d\'inscription avec Google...');
+      
+      const result = await loginWithGoogle();
+      
+      if (result.success) {
+        console.log('✅ Inscription Google réussie');
+        // La navigation se fera automatiquement via AuthContext
+      } else if (result.cancelled) {
+        console.log('ℹ️ Inscription Google annulée par l\'utilisateur');
+        // Ne pas afficher d'erreur si l'utilisateur a annulé
+      } else {
+        console.error('❌ Échec inscription Google:', result.error);
+        Alert.alert(
+          'Erreur d\'inscription Google', 
+          result.error || 'Une erreur est survenue lors de l\'inscription avec Google'
+        );
+      }
+    } catch (error) {
+      console.error('❌ Erreur Google register:', error);
+      Alert.alert('Erreur', 'Une erreur inattendue s\'est produite');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
   const handleLogin = () => {
     navigation.navigate('Login');
   };
 
-  if (isLoading) {
+  if (isLoading && !googleLoading) {
     return <Loading fullScreen gradient text="Création du compte..." />;
   }
 
@@ -172,6 +201,25 @@ const RegisterScreen = ({ navigation }) => {
           contentContainerStyle={styles.formContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Google Register Button - EN PREMIER */}
+          <Button
+            title="S'inscrire avec Google"
+            variant="google"
+            icon="logo-google"
+            onPress={handleGoogleRegister}
+            loading={googleLoading}
+            fullWidth
+            gradient={false}
+            style={styles.googleButton}
+          />
+
+          {/* Divider */}
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>ou</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
           {/* Prénom */}
           <Input
             label="Prénom"
@@ -271,24 +319,6 @@ const RegisterScreen = ({ navigation }) => {
             variant="secondary"
           />
 
-          {/* Divider */}
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>ou</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {/* Google Register Button */}
-          <Button
-            title="S'inscrire avec Google"
-            variant="google"
-            icon="logo-google"
-            onPress={() => Alert.alert('Google', 'Connexion Google bientôt disponible')}
-            fullWidth
-            gradient={false}
-            style={styles.googleButton}
-          />
-
           {/* Login Link */}
           <View style={styles.loginContainer}>
             <Text style={styles.loginText}>
@@ -353,23 +383,7 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingTop: 32,
   },
-  termsContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 24,
-  },
-  termsText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: colors.text.secondary,
-    flex: 1,
-    lineHeight: 20,
-  },
-  termsLink: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  registerButton: {
+  googleButton: {
     marginBottom: 24,
   },
   divider: {
@@ -387,7 +401,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text.secondary,
   },
-  googleButton: {
+  termsContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 24,
+  },
+  termsText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: colors.text.secondary,
+    flex: 1,
+    lineHeight: 20,
+  },
+  termsLink: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  registerButton: {
     marginBottom: 32,
   },
   loginContainer: {

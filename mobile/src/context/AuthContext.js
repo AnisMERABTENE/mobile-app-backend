@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import StorageService from '../utils/storage';
 import AuthService from '../services/authService';
+import GoogleAuthService from '../services/googleAuthService';
 
 // État initial
 const initialState = {
@@ -166,6 +167,61 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
+   * Connexion avec Google OAuth
+   */
+  const loginWithGoogle = async () => {
+    try {
+      dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
+      dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
+
+      console.log('🔵 Démarrage connexion Google...');
+
+      // Appeler le service Google Auth
+      const result = await GoogleAuthService.signInWithGoogle();
+
+      if (result.success) {
+        console.log('✅ Token Google reçu, récupération du profil...');
+
+        // Le token contient déjà les informations utilisateur du backend
+        // On doit décoder le token ou faire un appel pour récupérer le profil
+        const profileResult = await AuthService.verifyToken();
+
+        if (profileResult.success) {
+          const { user } = profileResult.data;
+
+          // Sauvegarder les données
+          await StorageService.saveAuthToken(result.token);
+          await StorageService.saveUserData(user);
+
+          dispatch({
+            type: AUTH_ACTIONS.LOGIN_SUCCESS,
+            payload: { user, token: result.token },
+          });
+
+          console.log('✅ Connexion Google réussie pour:', user.email);
+          return { success: true };
+        } else {
+          dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: 'Erreur lors de la récupération du profil' });
+          return { success: false, error: 'Erreur lors de la récupération du profil' };
+        }
+      } else {
+        if (result.cancelled) {
+          dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
+          return { success: false, cancelled: true };
+        } else {
+          dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: result.error });
+          return { success: false, error: result.error };
+        }
+      }
+    } catch (error) {
+      const errorMessage = 'Erreur lors de la connexion Google';
+      dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
+      console.error('❌ Erreur Google login:', error);
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  /**
    * Inscription - CORRIGÉ
    */
   const register = async (userData) => {
@@ -306,6 +362,7 @@ export const AuthProvider = ({ children }) => {
     
     // Actions
     login,
+    loginWithGoogle, // NOUVEAU
     register,
     logout,
     forgotPassword,
