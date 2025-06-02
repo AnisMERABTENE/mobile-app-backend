@@ -49,7 +49,10 @@ router.get('/status', (req, res) => {
       'POST /api/auth/verify-email',
       'GET /api/auth/verify-email (lien email)',
       'GET /api/auth/profile (protected)',
-      'POST /api/auth/logout (protected)'
+      'POST /api/auth/logout (protected)',
+      'GET /api/auth/google (OAuth)',
+      'GET /api/auth/google/callback (OAuth callback)',
+      'GET /api/auth/google/mobile-token (Mobile OAuth)'
     ]
   });
 });
@@ -179,7 +182,7 @@ router.get('/verify-email', async (req, res) => {
           <p>Une erreur est survenue lors de la vérification.</p>
           <p><a href="#" onclick="window.close()">Fermer cette fenêtre</a></p>
         </body>
-      </html>
+        </html>
     `);
   }
 });
@@ -193,11 +196,25 @@ router.get('/verify-email', async (req, res) => {
  * @desc    Initier la connexion Google OAuth
  * @access  Public
  */
-router.get('/google', 
+router.get('/google', (req, res, next) => {
+  // Détecter si la requête vient de l'app mobile ou du web
+  const userAgent = req.get('User-Agent') || '';
+  const isMobile = userAgent.includes('Expo') || 
+                   req.query.mobile === 'true' ||
+                   req.headers['x-mobile-app'] === 'true';
+
+  console.log('🔍 Détection plateforme:');
+  console.log('  User-Agent:', userAgent);
+  console.log('  Est mobile:', isMobile);
+  console.log('  Query mobile:', req.query.mobile);
+
+  // Authentifier avec Passport
   passport.authenticate('google', { 
-    scope: ['profile', 'email'] 
-  })
-);
+    scope: ['profile', 'email'],
+    // Pas de session pour l'API mobile
+    session: false
+  })(req, res, next);
+});
 
 /**
  * @route   GET /api/auth/google/callback
@@ -213,24 +230,86 @@ router.get('/google/callback',
       // Générer le token JWT pour l'utilisateur
       const token = generateToken(req.user);
       
-      // Rediriger vers l'app mobile avec le token
-      // En développement, on peut rediriger vers une page de succès
-      const redirectUrl = process.env.NODE_ENV === 'production' 
-        ? `${process.env.MOBILE_APP_URL}?token=${token}`
-        : `http://localhost:3000/auth/success?token=${token}`;
+      console.log('✅ Token généré pour:', req.user.email);
+
+      // NOUVEAU: Détecter la plateforme et rediriger en conséquence
+      const userAgent = req.get('User-Agent') || '';
+      const isMobile = userAgent.includes('Expo') || 
+                       req.query.mobile === 'true' ||
+                       req.headers['x-mobile-app'] === 'true';
+
+      if (isMobile || req.query.mobile === 'true') {
+        // Pour l'app mobile, afficher une page avec instructions
+        res.send(`
+          <html>
+            <head>
+              <title>Connexion Google réussie</title>
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+            </head>
+            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; min-height: 100vh;">
+              <h1>🎉 Connexion Google réussie !</h1>
+              <p>Bienvenue ${req.user.firstName} ${req.user.lastName}</p>
+              <p style="margin: 30px 0;">Vous pouvez maintenant fermer cette fenêtre et retourner à l'application mobile.</p>
+              <button onclick="window.close()" style="background: white; color: #667eea; border: none; padding: 15px 30px; border-radius: 8px; font-size: 16px; cursor: pointer;">
+                Fermer cette fenêtre
+              </button>
+              <script>
+                // Tenter de fermer automatiquement après 3 secondes
+                setTimeout(() => {
+                  window.close();
+                }, 3000);
+              </script>
+            </body>
+          </html>
+        `);
+      } else {
+        // Redirection web classique (pour les tests en développement)
+        const webRedirectUrl = process.env.NODE_ENV === 'production' 
+          ? `${process.env.MOBILE_APP_URL || 'mobileapp://'}?token=${token}`
+          : `http://localhost:3000/auth/success?token=${token}`;
         
-      res.redirect(redirectUrl);
+        console.log('🌐 Redirection web vers:', webRedirectUrl);
+        res.redirect(webRedirectUrl);
+      }
       
     } catch (error) {
       console.error('❌ Erreur callback Google:', error);
-      const errorUrl = process.env.NODE_ENV === 'production'
-        ? `${process.env.MOBILE_APP_URL}?error=auth_failed`
-        : `http://localhost:3000/auth/error?error=auth_failed`;
-        
-      res.redirect(errorUrl);
+      
+      res.send(`
+        <html>
+          <head>
+            <title>Erreur de connexion</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+          </head>
+          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #ef4444; color: white; min-height: 100vh;">
+            <h1>❌ Erreur de connexion</h1>
+            <p>Une erreur est survenue lors de la connexion avec Google.</p>
+            <p>Veuillez réessayer.</p>
+            <button onclick="window.close()" style="background: white; color: #ef4444; border: none; padding: 15px 30px; border-radius: 8px; font-size: 16px; cursor: pointer;">
+              Fermer cette fenêtre
+            </button>
+          </body>
+        </html>
+      `);
     }
   }
 );
+
+/**
+ * @route   GET /api/auth/google/mobile-token
+ * @desc    Récupérer le token pour l'app mobile après OAuth
+ * @access  Public (temporaire)
+ */
+router.get('/google/mobile-token', (req, res) => {
+  // Pour l'instant, cette route indique qu'il n'y a pas de token
+  // Dans une vraie implémentation, on utiliserait Redis ou une session temporaire
+  console.log('📱 Demande de token mobile...');
+  
+  res.status(404).json({
+    success: false,
+    error: 'Aucun token disponible'
+  });
+});
 
 // ===================
 // ROUTES PROTÉGÉES
