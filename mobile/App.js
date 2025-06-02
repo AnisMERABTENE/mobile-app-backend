@@ -44,7 +44,8 @@ const AppNavigator = () => {
     const handleDeepLink = async (url) => {
       console.log('🔗 Deep link reçu:', url);
       
-      if (url && url.includes('auth/google/callback')) {
+      if (url && url.includes('myapp://')) {
+
         try {
           // Extraire le token de l'URL
           const urlObj = new URL(url);
