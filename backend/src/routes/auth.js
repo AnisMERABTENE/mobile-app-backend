@@ -52,7 +52,8 @@ router.get('/status', (req, res) => {
       'POST /api/auth/logout (protected)',
       'GET /api/auth/google (OAuth)',
       'GET /api/auth/google/callback (OAuth callback)',
-      'GET /api/auth/google/mobile-token (Mobile OAuth)'
+      'GET /api/auth/google/mobile-token (Mobile OAuth)',
+      'POST /api/auth/google/native (Native OAuth)'
     ]
   });
 });
@@ -309,6 +310,69 @@ router.get('/google/mobile-token', (req, res) => {
     success: false,
     error: 'Aucun token disponible'
   });
+});
+
+/**
+ * @route   POST /api/auth/google/native
+ * @desc    Authentification Google native depuis l'app mobile
+ * @access  Public
+ */
+router.post('/google/native', async (req, res) => {
+  try {
+    const { googleId, email, firstName, lastName, avatar, isEmailVerified } = req.body;
+    const { generateToken } = require('../utils/jwt');
+    const User = require('../models/User');
+
+    console.log('📱 Auth Google native pour:', email);
+
+    // Chercher ou créer l'utilisateur
+    let user = await User.findOne({ email });
+
+    if (user) {
+      // Utilisateur existe - mettre à jour avec les infos Google
+      if (!user.googleId) {
+        user.googleId = googleId;
+        user.isEmailVerified = true;
+        if (!user.avatar) user.avatar = avatar;
+        await user.save();
+        console.log('✅ Compte existant lié à Google:', email);
+      } else {
+        console.log('✅ Connexion Google native réussie:', email);
+      }
+    } else {
+      // Créer un nouvel utilisateur
+      user = new User({
+        firstName,
+        lastName,
+        email,
+        googleId,
+        avatar,
+        isEmailVerified: true,
+        role: 'user'
+      });
+      await user.save();
+      console.log('✅ Nouveau compte créé via Google native:', email);
+    }
+
+    // Mettre à jour la dernière connexion
+    user.lastLoginAt = new Date();
+    await user.save();
+
+    // Générer le token JWT
+    const token = generateToken(user);
+
+    res.json({
+      message: 'Connexion Google native réussie',
+      user: user.toJSON(),
+      token
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur auth Google native:', error);
+    res.status(500).json({
+      error: 'Erreur lors de l\'authentification Google'
+    });
+  }
 });
 
 // ===================
