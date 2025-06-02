@@ -194,7 +194,7 @@ router.get('/verify-email', async (req, res) => {
 
 /**
  * @route   GET /api/auth/google
- * @desc    Initier la connexion Google OAuth
+ * @desc    Initier la connexion Google OAuth - CORRIGÉ
  * @access  Public
  */
 router.get('/google', (req, res, next) => {
@@ -210,11 +210,20 @@ router.get('/google', (req, res, next) => {
   console.log('  Query mobile:', req.query.mobile);
   console.log('  Platform:', req.query.platform);
 
+  // ✅ CORRECTION : Préserver les paramètres mobiles dans le state
+  const state = isMobile ? JSON.stringify({
+    mobile: true,
+    platform: req.query.platform || 'unknown',
+    timestamp: Date.now()
+  }) : undefined;
+
+  console.log('📱 State généré:', state);
+
   // Authentifier avec Passport
   passport.authenticate('google', { 
     scope: ['profile', 'email'],
-    // Pas de session pour l'API mobile
-    session: false
+    session: false,
+    state: state  // ✅ AJOUT : Passer le state pour préserver les infos mobiles
   })(req, res, next);
 });
 
@@ -234,22 +243,39 @@ router.get('/google/callback',
       
       console.log('✅ Token généré pour:', req.user.email);
 
-      // Détecter la plateforme
-      const userAgent = req.get('User-Agent') || '';
-      const isMobile = userAgent.includes('Expo') || 
-                       req.query.mobile === 'true' ||
-                       req.headers['x-mobile-app'] === 'true';
+      // ✅ CORRECTION : Récupérer les infos mobiles depuis le state
+      let isMobile = false;
+      let platform = 'unknown';
+      
+      try {
+        if (req.query.state) {
+          const stateData = JSON.parse(req.query.state);
+          isMobile = stateData.mobile || false;
+          platform = stateData.platform || 'unknown';
+          console.log('📱 State récupéré:', stateData);
+        }
+      } catch (e) {
+        console.log('⚠️ Impossible de parser le state, fallback sur User-Agent');
+      }
 
-      console.log('🔍 Détection plateforme callback:');
-      console.log('  User-Agent:', userAgent);
+      // Fallback sur User-Agent si pas de state
+      if (!isMobile) {
+        const userAgent = req.get('User-Agent') || '';
+        isMobile = userAgent.includes('Expo') || 
+                   userAgent.includes('Mobile') ||
+                   req.query.mobile === 'true';
+      }
+
+      console.log('🔍 Détection plateforme callback CORRIGÉE:');
       console.log('  Est mobile:', isMobile);
-      console.log('  Query mobile:', req.query.mobile);
+      console.log('  Platform:', platform);
+      console.log('  State query:', req.query.state);
 
-      if (isMobile || req.query.mobile === 'true') {
-        // CORRECTION: Redirection vers le deep link avec le token
-        const mobileRedirectUrl = `myapp://auth?token=${token}&success=true&email=${encodeURIComponent(req.user.email)}`;
+      if (isMobile) {
+        // ✅ CORRECTION : Redirection mobile améliorée
+        const mobileRedirectUrl = `myapp://auth?token=${token}&success=true&email=${encodeURIComponent(req.user.email)}&platform=${platform}`;
         
-        console.log('📱 Redirection mobile vers:', mobileRedirectUrl);
+        console.log('📱 Redirection mobile CORRIGÉE vers:', mobileRedirectUrl);
         
         // Page HTML qui redirige automatiquement vers l'app mobile
         res.send(`
@@ -258,22 +284,28 @@ router.get('/google/callback',
               <title>Connexion Google réussie</title>
               <meta name="viewport" content="width=device-width, initial-scale=1">
               <script>
-                console.log('Redirection vers: ${mobileRedirectUrl}');
+                console.log('🔗 Redirection vers: ${mobileRedirectUrl}');
                 
-                // Tentative de redirection vers l'app mobile
+                // Fonction de redirection
                 function redirectToApp() {
                   try {
+                    console.log('📱 Tentative de redirection...');
                     window.location.href = '${mobileRedirectUrl}';
                   } catch (e) {
-                    console.error('Erreur redirection:', e);
+                    console.error('❌ Erreur redirection:', e);
                   }
                 }
                 
                 // Redirection immédiate
                 redirectToApp();
                 
-                // Redirection après 1 seconde au cas où
+                // Redirection de secours après 1 seconde
                 setTimeout(redirectToApp, 1000);
+                
+                // Message de confirmation après 3 secondes
+                setTimeout(() => {
+                  console.log('✅ Redirections envoyées');
+                }, 3000);
               </script>
             </head>
             <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; min-height: 100vh; display: flex; flex-direction: column; justify-content: center;">
@@ -293,19 +325,29 @@ router.get('/google/callback',
                 </button>
                 
                 <p style="font-size: 12px; margin-top: 30px; opacity: 0.8;">
-                  Si la redirection ne fonctionne pas, cliquez sur "Ouvrir l'application"
+                  Si la redirection ne fonctionne pas, cliquez sur "Ouvrir l'application"<br>
+                  Platform: ${platform} | Mobile: ${isMobile}
                 </p>
+                
+                <details style="margin-top: 20px; font-size: 10px;">
+                  <summary>Debug Info</summary>
+                  <pre style="text-align: left; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px; margin-top: 10px;">
+Token: ${token.substring(0, 50)}...
+URL: ${mobileRedirectUrl}
+User: ${req.user.email}
+                  </pre>
+                </details>
               </div>
               
               <script>
-                // Fermer automatiquement après 8 secondes
+                // Fermer automatiquement après 10 secondes
                 setTimeout(() => {
                   try {
                     window.close();
                   } catch (e) {
-                    console.log('Impossible de fermer automatiquement');
+                    console.log('Info: Impossible de fermer automatiquement');
                   }
-                }, 8000);
+                }, 10000);
               </script>
             </body>
           </html>
