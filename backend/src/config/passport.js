@@ -1,3 +1,4 @@
+// backend/src/config/passport.js
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const User = require('../models/User');
@@ -13,12 +14,21 @@ if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
   return;
 }
 
+// CORRECTION: URL de callback dynamique selon l'environnement
+const getCallbackURL = () => {
+  if (process.env.NODE_ENV === 'production') {
+    return 'https://mobile-app-backend-production-5d60.up.railway.app/api/auth/google/callback';
+  }
+  return 'http://localhost:3000/api/auth/google/callback';
+};
+
 // Configuration de la stratégie Google OAuth
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: "https://mobile-app-backend-production-5d60.up.railway.app/api/auth/google/callback"}, 
-  async (accessToken, refreshToken, profile, done) => {
+  callbackURL: getCallbackURL()
+}, 
+async (accessToken, refreshToken, profile, done) => {
   try {
     console.log('📧 Connexion Google tentée pour:', profile.emails[0].value);
     
@@ -86,6 +96,6 @@ passport.deserializeUser(async (id, done) => {
   }
 });
 
-console.log('✅ Passport Google OAuth configuré');
+console.log('✅ Passport Google OAuth configuré avec callback:', getCallbackURL());
 
 module.exports = passport;

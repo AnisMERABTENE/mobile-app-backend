@@ -19,10 +19,6 @@ import { useAuth } from './src/context/AuthContext';
 // Loading
 import Loading from './src/components/Loading';
 
-// Services
-import StorageService from './src/utils/storage';
-import AuthService from './src/services/authService';
-
 // Empêcher le splash screen de se cacher automatiquement
 SplashScreen.preventAutoHideAsync();
 
@@ -30,7 +26,7 @@ const Stack = createNativeStackNavigator();
 
 // Composant principal de navigation
 const AppNavigator = () => {
-  const { isAuthenticated, isLoading, user, dispatch } = useAuth();
+  const { isAuthenticated, isLoading, user, handleAuthDeepLink } = useAuth();
 
   useEffect(() => {
     if (!isLoading) {
@@ -39,78 +35,67 @@ const AppNavigator = () => {
     }
   }, [isLoading]);
 
-  // Gestion des deep links pour Google OAuth
+  // ✅ GESTION AMÉLIORÉE DES DEEP LINKS
   useEffect(() => {
     const handleDeepLink = async (url) => {
-      console.log('🔗 Deep link reçu:', url);
+      console.log('🔗 Deep link reçu dans App.js:', url);
       
-      if (url && url.includes('myapp://')) {
+      if (!url) return;
 
+      // Vérifier si c'est un deep link d'authentification
+      if (url.includes('myapp://auth') || url.includes('mobileapp://auth')) {
         try {
-          // Extraire le token de l'URL
-          const urlObj = new URL(url);
-          const token = urlObj.searchParams.get('token');
-          const error = urlObj.searchParams.get('error');
-
-          if (error) {
-            console.error('❌ Erreur OAuth:', error);
-            Alert.alert('Erreur de connexion', 'Une erreur est survenue lors de la connexion avec Google');
-            return;
-          }
-
-          if (token) {
-            console.log('✅ Token reçu via deep link');
-            
-            // Sauvegarder le token temporairement
-            await StorageService.saveAuthToken(token);
-            
-            // Récupérer le profil utilisateur avec ce token
-            const profileResult = await AuthService.verifyToken();
-            
-            if (profileResult.success) {
-              const { user } = profileResult.data;
-              
-              // Sauvegarder les données utilisateur
-              await StorageService.saveUserData(user);
-              
-              // Mettre à jour le contexte d'authentification
-              dispatch({
-                type: 'LOGIN_SUCCESS',
-                payload: { user, token }
-              });
-              
-              console.log('✅ Connexion Google complète pour:', user.email);
-              Alert.alert('Connexion réussie', `Bienvenue ${user.firstName} !`);
-            } else {
-              console.error('❌ Erreur récupération profil:', profileResult.error);
-              await StorageService.removeAuthToken();
-              Alert.alert('Erreur', 'Impossible de récupérer votre profil');
-            }
+          console.log('🔐 Deep link d\'authentification détecté');
+          
+          // Utiliser la fonction du contexte pour traiter le deep link
+          const result = await handleAuthDeepLink(url);
+          
+          if (result.success) {
+            console.log('✅ Deep link traité avec succès');
+            Alert.alert(
+              'Connexion réussie', 
+              `Bienvenue ${result.user?.firstName || 'utilisateur'} !`
+            );
+          } else {
+            console.error('❌ Erreur traitement deep link:', result.error);
+            Alert.alert('Erreur de connexion', result.error);
           }
         } catch (error) {
-          console.error('❌ Erreur traitement deep link:', error);
-          Alert.alert('Erreur', 'Une erreur est survenue lors du traitement de la connexion');
+          console.error('❌ Erreur inattendue deep link:', error);
+          Alert.alert('Erreur', 'Une erreur inattendue s\'est produite');
         }
+      } else if (url.includes('myapp://') || url.includes('mobileapp://')) {
+        // Autres types de deep links (ajouts futurs)
+        console.log('🔗 Autre type de deep link:', url);
       }
     };
 
-    // Écouter les deep links
+    // Écouter les deep links pendant que l'app est ouverte
     const subscription = Linking.addEventListener('url', ({ url }) => {
+      console.log('📱 Deep link reçu (app ouverte):', url);
       handleDeepLink(url);
     });
 
-    // Vérifier s'il y a un deep link au démarrage
+    // Vérifier s'il y a un deep link au démarrage de l'app
     Linking.getInitialURL().then((url) => {
       if (url) {
-        handleDeepLink(url);
+        console.log('🚀 Deep link au démarrage:', url);
+        // Attendre un peu que l'app soit complètement chargée
+        setTimeout(() => {
+          handleDeepLink(url);
+        }, 1500);
       }
+    }).catch((error) => {
+      console.error('❌ Erreur récupération initial URL:', error);
     });
 
+    // Nettoyer l'écouteur
     return () => {
       subscription?.remove();
     };
-  }, [dispatch]);
+  }, [handleAuthDeepLink]);
 
+  // Afficher le loading pendant l'initialisation
   if (isLoading) {
     return <Loading fullScreen gradient text="Chargement de l'application..." />;
   }
@@ -142,6 +127,7 @@ const AppNavigator = () => {
 // Composant racine de l'application
 export default function App() {
   console.log('📱 Démarrage de l\'application React Native...');
+  console.log('🔗 Deep link schemes configurés: myapp://, mobileapp://');
 
   return (
     <AuthProvider>

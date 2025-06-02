@@ -208,6 +208,7 @@ router.get('/google', (req, res, next) => {
   console.log('  User-Agent:', userAgent);
   console.log('  Est mobile:', isMobile);
   console.log('  Query mobile:', req.query.mobile);
+  console.log('  Platform:', req.query.platform);
 
   // Authentifier avec Passport
   passport.authenticate('google', { 
@@ -219,7 +220,7 @@ router.get('/google', (req, res, next) => {
 
 /**
  * @route   GET /api/auth/google/callback
- * @desc    Callback après authentification Google
+ * @desc    Callback après authentification Google - VERSION CORRIGÉE
  * @access  Public
  */
 router.get('/google/callback',
@@ -233,32 +234,78 @@ router.get('/google/callback',
       
       console.log('✅ Token généré pour:', req.user.email);
 
-      // NOUVEAU: Détecter la plateforme et rediriger en conséquence
+      // Détecter la plateforme
       const userAgent = req.get('User-Agent') || '';
       const isMobile = userAgent.includes('Expo') || 
                        req.query.mobile === 'true' ||
                        req.headers['x-mobile-app'] === 'true';
 
+      console.log('🔍 Détection plateforme callback:');
+      console.log('  User-Agent:', userAgent);
+      console.log('  Est mobile:', isMobile);
+      console.log('  Query mobile:', req.query.mobile);
+
       if (isMobile || req.query.mobile === 'true') {
-        // Pour l'app mobile, afficher une page avec instructions
+        // CORRECTION: Redirection vers le deep link avec le token
+        const mobileRedirectUrl = `myapp://auth?token=${token}&success=true&email=${encodeURIComponent(req.user.email)}`;
+        
+        console.log('📱 Redirection mobile vers:', mobileRedirectUrl);
+        
+        // Page HTML qui redirige automatiquement vers l'app mobile
         res.send(`
           <html>
             <head>
               <title>Connexion Google réussie</title>
               <meta name="viewport" content="width=device-width, initial-scale=1">
-            </head>
-            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; min-height: 100vh;">
-              <h1>🎉 Connexion Google réussie !</h1>
-              <p>Bienvenue ${req.user.firstName} ${req.user.lastName}</p>
-              <p style="margin: 30px 0;">Vous pouvez maintenant fermer cette fenêtre et retourner à l'application mobile.</p>
-              <button onclick="window.close()" style="background: white; color: #667eea; border: none; padding: 15px 30px; border-radius: 8px; font-size: 16px; cursor: pointer;">
-                Fermer cette fenêtre
-              </button>
               <script>
-                // Tenter de fermer automatiquement après 3 secondes
+                console.log('Redirection vers: ${mobileRedirectUrl}');
+                
+                // Tentative de redirection vers l'app mobile
+                function redirectToApp() {
+                  try {
+                    window.location.href = '${mobileRedirectUrl}';
+                  } catch (e) {
+                    console.error('Erreur redirection:', e);
+                  }
+                }
+                
+                // Redirection immédiate
+                redirectToApp();
+                
+                // Redirection après 1 seconde au cas où
+                setTimeout(redirectToApp, 1000);
+              </script>
+            </head>
+            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; min-height: 100vh; display: flex; flex-direction: column; justify-content: center;">
+              <div>
+                <h1>🎉 Connexion Google réussie !</h1>
+                <p>Bienvenue <strong>${req.user.firstName} ${req.user.lastName}</strong></p>
+                <p style="margin: 30px 0;">Redirection vers l'application mobile...</p>
+                
+                <button onclick="window.location.href='${mobileRedirectUrl}'" style="background: white; color: #667eea; border: none; padding: 15px 30px; border-radius: 8px; font-size: 16px; cursor: pointer; margin: 10px;">
+                  📱 Ouvrir l'application
+                </button>
+                
+                <br>
+                
+                <button onclick="window.close()" style="background: transparent; color: white; border: 1px solid white; padding: 10px 20px; border-radius: 8px; font-size: 14px; cursor: pointer; margin: 10px;">
+                  ❌ Fermer cette fenêtre
+                </button>
+                
+                <p style="font-size: 12px; margin-top: 30px; opacity: 0.8;">
+                  Si la redirection ne fonctionne pas, cliquez sur "Ouvrir l'application"
+                </p>
+              </div>
+              
+              <script>
+                // Fermer automatiquement après 8 secondes
                 setTimeout(() => {
-                  window.close();
-                }, 3000);
+                  try {
+                    window.close();
+                  } catch (e) {
+                    console.log('Impossible de fermer automatiquement');
+                  }
+                }, 8000);
               </script>
             </body>
           </html>
@@ -266,7 +313,7 @@ router.get('/google/callback',
       } else {
         // Redirection web classique (pour les tests en développement)
         const webRedirectUrl = process.env.NODE_ENV === 'production' 
-          ? `${process.env.MOBILE_APP_URL || 'mobileapp://'}?token=${token}`
+          ? `myapp://auth?token=${token}&success=true`
           : `http://localhost:3000/auth/success?token=${token}`;
         
         console.log('🌐 Redirection web vers:', webRedirectUrl);
@@ -276,19 +323,28 @@ router.get('/google/callback',
     } catch (error) {
       console.error('❌ Erreur callback Google:', error);
       
+      const errorRedirectUrl = `myapp://auth?error=${encodeURIComponent('Erreur lors de la connexion Google')}&success=false`;
+      
       res.send(`
         <html>
           <head>
             <title>Erreur de connexion</title>
             <meta name="viewport" content="width=device-width, initial-scale=1">
+            <script>
+              setTimeout(() => {
+                window.location.href = '${errorRedirectUrl}';
+              }, 2000);
+            </script>
           </head>
-          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #ef4444; color: white; min-height: 100vh;">
-            <h1>❌ Erreur de connexion</h1>
-            <p>Une erreur est survenue lors de la connexion avec Google.</p>
-            <p>Veuillez réessayer.</p>
-            <button onclick="window.close()" style="background: white; color: #ef4444; border: none; padding: 15px 30px; border-radius: 8px; font-size: 16px; cursor: pointer;">
-              Fermer cette fenêtre
-            </button>
+          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #ef4444; color: white; min-height: 100vh; display: flex; flex-direction: column; justify-content: center;">
+            <div>
+              <h1>❌ Erreur de connexion</h1>
+              <p>Une erreur est survenue lors de la connexion avec Google.</p>
+              <p>Redirection vers l'application mobile...</p>
+              <button onclick="window.location.href='${errorRedirectUrl}'" style="background: white; color: #ef4444; border: none; padding: 15px 30px; border-radius: 8px; font-size: 16px; cursor: pointer;">
+                Retourner à l'application
+              </button>
+            </div>
           </body>
         </html>
       `);
