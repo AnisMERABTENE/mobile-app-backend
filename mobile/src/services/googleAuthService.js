@@ -1,7 +1,7 @@
-import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
-import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { apiRequest } from './api';
+import StorageService from '../utils/storage';
 
 // Configuration pour que le WebBrowser puisse revenir à l'app
 WebBrowser.maybeCompleteAuthSession();
@@ -15,14 +15,7 @@ class GoogleAuthService {
     // URL de base de l'API backend
     this.baseURL = 'https://mobile-app-backend-production-5d60.up.railway.app';
     
-    // Configuration OAuth
-    this.redirectUri = AuthSession.makeRedirectUri({
-      scheme: 'mobileapp',
-      path: 'auth/google/callback'
-    });
-    
     console.log('🔧 Google Auth Service configuré');
-    console.log('📱 Redirect URI:', this.redirectUri);
   }
 
   /**
@@ -32,38 +25,34 @@ class GoogleAuthService {
     try {
       console.log('🔵 Démarrage de la connexion Google...');
 
-      // URL d'authentification du backend
-      const authUrl = `${this.baseURL}/api/auth/google`;
+      // URL d'authentification du backend avec indicateur mobile
+      const authUrl = `${this.baseURL}/api/auth/google?mobile=true`;
       
       console.log('🌐 Ouverture de:', authUrl);
 
       // Ouvrir le navigateur pour l'authentification
-      const result = await WebBrowser.openAuthSessionAsync(
-        authUrl,
-        this.redirectUri,
-        {
-          showInRecents: false,
-        }
-      );
+      const result = await WebBrowser.openBrowserAsync(authUrl, {
+        // Options pour revenir à l'app après authentification
+        dismissButtonStyle: 'close',
+        readerMode: false,
+        enableBarCollapsing: false,
+        showInRecents: true,
+      });
 
       console.log('📱 Résultat WebBrowser:', result);
 
-      if (result.type === 'success') {
-        return this.handleAuthSuccess(result.url);
-      } else if (result.type === 'cancel') {
+      if (result.type === 'cancel') {
         console.log('❌ Authentification annulée par l\'utilisateur');
         return {
           success: false,
           error: 'Authentification annulée',
           cancelled: true
         };
-      } else {
-        console.log('❌ Authentification échouée:', result.type);
-        return {
-          success: false,
-          error: 'Erreur lors de l\'authentification'
-        };
       }
+
+      // Après que l'utilisateur ferme le navigateur, on vérifie s'il y a un token
+      // Le backend aura stocké le token dans une session temporaire
+      return await this.checkForStoredToken();
 
     } catch (error) {
       console.error('❌ Erreur Google Auth:', error);
@@ -75,62 +64,52 @@ class GoogleAuthService {
   }
 
   /**
-   * Traiter la réponse de succès du backend
+   * Vérifier s'il y a un token stocké après l'authentification
    */
-  handleAuthSuccess(url) {
+  async checkForStoredToken() {
     try {
-      console.log('✅ Traitement de l\'URL de succès:', url);
+      console.log('🔍 Vérification du token après authentification...');
 
-      // Parser l'URL pour extraire le token
-      const urlObj = new URL(url);
-      const params = new URLSearchParams(urlObj.search);
-      
-      const token = params.get('token');
-      const error = params.get('error');
+      // Attendre un peu que l'utilisateur ferme le navigateur
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-      if (error) {
-        console.error('❌ Erreur du backend:', error);
-        return {
-          success: false,
-          error: this.getErrorMessage(error)
-        };
-      }
+      // Essayer de récupérer le token via une route spéciale
+      const result = await apiRequest.get('/auth/google/mobile-token');
 
-      if (token) {
-        console.log('✅ Token JWT reçu du backend');
+      if (result.success && result.data.token) {
+        console.log('✅ Token Google récupéré');
         return {
           success: true,
-          token: token
+          token: result.data.token,
+          user: result.data.user
         };
       } else {
-        console.error('❌ Aucun token dans l\'URL de retour');
+        console.log('ℹ️ Aucun token trouvé - utilisateur probablement annulé');
         return {
           success: false,
-          error: 'Aucun token d\'authentification reçu'
+          error: 'Authentification non terminée',
+          cancelled: true
         };
       }
 
     } catch (error) {
-      console.error('❌ Erreur parsing URL:', error);
+      console.error('❌ Erreur vérification token:', error);
       return {
         success: false,
-        error: 'Erreur lors du traitement de la réponse'
+        error: 'Erreur lors de la vérification du token'
       };
     }
   }
 
   /**
-   * Convertir les codes d'erreur en messages lisibles
+   * Nettoyer le token temporaire
    */
-  getErrorMessage(errorCode) {
-    const errorMessages = {
-      'auth_failed': 'Échec de l\'authentification Google',
-      'server_error': 'Erreur serveur, réessayez plus tard',
-      'invalid_token': 'Token d\'authentification invalide',
-      'user_cancelled': 'Authentification annulée',
-    };
-
-    return errorMessages[errorCode] || 'Erreur inconnue lors de l\'authentification';
+  async clearTemporaryToken() {
+    try {
+      await apiRequest.delete('/auth/google/mobile-token');
+    } catch (error) {
+      console.log('Info: Impossible de nettoyer le token temporaire');
+    }
   }
 
   /**
@@ -138,7 +117,6 @@ class GoogleAuthService {
    */
   getConfig() {
     return {
-      redirectUri: this.redirectUri,
       baseURL: this.baseURL,
       platform: Platform.OS,
     };

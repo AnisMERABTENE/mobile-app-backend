@@ -33,7 +33,8 @@
     "@expo/webpack-config": "^19.0.0",
     "expo-auth-session": "~5.0.2",
     "expo-crypto": "~12.4.1",
-    "expo-web-browser": "~12.3.2"
+    "expo-web-browser": "~12.3.2",
+    "expo-linking": "~5.0.2"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"

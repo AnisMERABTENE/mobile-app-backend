@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import StorageService from '../utils/storage';
 import AuthService from '../services/authService';
-import GoogleAuthService from '../services/googleAuthService';
+import NativeGoogleAuthService from '../services/nativeGoogleAuthService';
 
 // État initial
 const initialState = {
@@ -167,43 +167,34 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Connexion avec Google OAuth
+   * Connexion avec Google OAuth natif
    */
   const loginWithGoogle = async () => {
     try {
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
-      console.log('🔵 Démarrage connexion Google...');
+      console.log('🔵 Démarrage connexion Google native...');
 
-      // Appeler le service Google Auth
-      const result = await GoogleAuthService.signInWithGoogle();
+      // Appeler le service Google Auth natif
+      const result = await NativeGoogleAuthService.signInWithGoogle();
 
       if (result.success) {
-        console.log('✅ Token Google reçu, récupération du profil...');
+        console.log('✅ Connexion Google native réussie');
 
-        // Le token contient déjà les informations utilisateur du backend
-        // On doit décoder le token ou faire un appel pour récupérer le profil
-        const profileResult = await AuthService.verifyToken();
+        const { user, token } = result;
 
-        if (profileResult.success) {
-          const { user } = profileResult.data;
+        // Sauvegarder les données
+        await StorageService.saveAuthToken(token);
+        await StorageService.saveUserData(user);
 
-          // Sauvegarder les données
-          await StorageService.saveAuthToken(result.token);
-          await StorageService.saveUserData(user);
+        dispatch({
+          type: AUTH_ACTIONS.LOGIN_SUCCESS,
+          payload: { user, token },
+        });
 
-          dispatch({
-            type: AUTH_ACTIONS.LOGIN_SUCCESS,
-            payload: { user, token: result.token },
-          });
-
-          console.log('✅ Connexion Google réussie pour:', user.email);
-          return { success: true };
-        } else {
-          dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: 'Erreur lors de la récupération du profil' });
-          return { success: false, error: 'Erreur lors de la récupération du profil' };
-        }
+        console.log('✅ Connexion Google complète pour:', user.email);
+        return { success: true };
       } else {
         if (result.cancelled) {
           dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
@@ -216,20 +207,19 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       const errorMessage = 'Erreur lors de la connexion Google';
       dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
-      console.error('❌ Erreur Google login:', error);
+      console.error('❌ Erreur Google login native:', error);
       return { success: false, error: errorMessage };
     }
   };
 
   /**
-   * Inscription - CORRIGÉ
+   * Inscription
    */
   const register = async (userData) => {
     try {
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
-      // CORRECTION : Utilise AuthService au lieu d'apiRequest
       const result = await AuthService.register(userData);
 
       if (result.success) {
@@ -362,7 +352,7 @@ export const AuthProvider = ({ children }) => {
     
     // Actions
     login,
-    loginWithGoogle, // NOUVEAU
+    loginWithGoogle, // NOUVEAU - Service Google natif
     register,
     logout,
     forgotPassword,
@@ -372,6 +362,7 @@ export const AuthProvider = ({ children }) => {
     
     // Utilitaires
     checkAuthStatus,
+    dispatch, // Pour les deep links dans App.js
   };
 
   return (
