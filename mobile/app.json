@@ -21,7 +21,7 @@
       "package": "com.mobileapp.app",
       "scheme": "mobileapp"
     },
-    "scheme": "mobileapp",
+    "scheme": "myapp",
     "plugins": [],
     "extra": {
       "eas": {

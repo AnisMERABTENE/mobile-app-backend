@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import * as WebBrowser from 'expo-web-browser';
 import {
   View,
   Text,
@@ -107,23 +108,15 @@ const LoginScreen = ({ navigation }) => {
   const handleGoogleLogin = async () => {
     try {
       setGoogleLoading(true);
-      console.log('🔵 Tentative de connexion Google...');
+      console.log('🔵 Tentative de connexion Google native...');
       
+      // Utiliser le service Google Auth NATIF
       const result = await loginWithGoogle();
       
-      if (result.success) {
-        console.log('✅ Connexion Google réussie');
-        // La navigation se fera automatiquement via AuthContext
-      } else if (result.cancelled) {
-        console.log('ℹ️ Connexion Google annulée par l\'utilisateur');
-        // Ne pas afficher d'erreur si l'utilisateur a annulé
-      } else {
-        console.error('❌ Échec connexion Google:', result.error);
-        Alert.alert(
-          'Erreur de connexion Google', 
-          result.error || 'Une erreur est survenue lors de la connexion avec Google'
-        );
+      if (!result.success && !result.cancelled) {
+        Alert.alert('Erreur de connexion Google', result.error);
       }
+      
     } catch (error) {
       console.error('❌ Erreur Google login:', error);
       Alert.alert('Erreur', 'Une erreur inattendue s\'est produite');
