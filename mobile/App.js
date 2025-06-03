@@ -35,7 +35,13 @@ const AppNavigator = () => {
     }
   }, [isLoading]);
 
-  // ✅ GESTION AMÉLIORÉE DES DEEP LINKS
+  // ✅ DEBUG SÉPARÉ
+  useEffect(() => {
+    console.log('🔧 Debug: App démarrée, écoute des deep links...');
+    console.log('🧪 Test réception deep links...');
+  }, []);
+
+  // ✅ GESTION AMÉLIORÉE DES DEEP LINKS - USEEFFECT SÉPARÉ
   useEffect(() => {
     const handleDeepLink = async (url) => {
       console.log('🔗 Deep link reçu dans App.js:', url);

@@ -12,14 +12,14 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mobileapp.app",
-      "scheme": "mobileapp"
+      "scheme": "myapp"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#667eea"
       },
       "package": "com.mobileapp.app",
-      "scheme": "mobileapp"
+      "scheme": "myapp"
     },
     "scheme": "myapp",
     "plugins": [],
