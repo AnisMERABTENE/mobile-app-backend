@@ -226,173 +226,216 @@ router.get('/google', (req, res, next) => {
     state: state  // ✅ AJOUT : Passer le state pour préserver les infos mobiles
   })(req, res, next);
 });
-
 /**
  * @route   GET /api/auth/google/callback
- * @desc    Callback après authentification Google - VERSION CORRIGÉE
+ * @desc    Callback après authentification Google - VERSION ULTRA CORRIGÉE
  * @access  Public
  */
 router.get('/google/callback',
-  passport.authenticate('google', { session: false }),
-  async (req, res) => {
-    try {
-      const { generateToken } = require('../utils/jwt');
-      
-      // Générer le token JWT pour l'utilisateur
-      const token = generateToken(req.user);
-      
-      console.log('✅ Token généré pour:', req.user.email);
-
-      // ✅ CORRECTION : Récupérer les infos mobiles depuis le state
-      let isMobile = false;
-      let platform = 'unknown';
-      
+    passport.authenticate('google', { session: false }),
+    async (req, res) => {
       try {
-        if (req.query.state) {
-          const stateData = JSON.parse(req.query.state);
-          isMobile = stateData.mobile || false;
-          platform = stateData.platform || 'unknown';
-          console.log('📱 State récupéré:', stateData);
+        const { generateToken } = require('../utils/jwt');
+        
+        // Générer le token JWT pour l'utilisateur
+        const token = generateToken(req.user);
+        
+        console.log('✅ Token généré pour:', req.user.email);
+  
+        // ✅ CORRECTION : Récupérer les infos mobiles depuis le state
+        let isMobile = false;
+        let platform = 'unknown';
+        
+        try {
+          if (req.query.state) {
+            const stateData = JSON.parse(req.query.state);
+            isMobile = stateData.mobile || false;
+            platform = stateData.platform || 'unknown';
+            console.log('📱 State récupéré:', stateData);
+          }
+        } catch (e) {
+          console.log('⚠️ Impossible de parser le state, fallback sur User-Agent');
         }
-      } catch (e) {
-        console.log('⚠️ Impossible de parser le state, fallback sur User-Agent');
-      }
-
-      // Fallback sur User-Agent si pas de state
-      if (!isMobile) {
-        const userAgent = req.get('User-Agent') || '';
-        isMobile = userAgent.includes('Expo') || 
-                   userAgent.includes('Mobile') ||
-                   req.query.mobile === 'true';
-      }
-
-      console.log('🔍 Détection plateforme callback CORRIGÉE:');
-      console.log('  Est mobile:', isMobile);
-      console.log('  Platform:', platform);
-      console.log('  State query:', req.query.state);
-
-      if (isMobile) {
-        // ✅ CORRECTION : Redirection mobile améliorée
-        const mobileRedirectUrl = `myapp://auth?token=${token}&success=true&email=${encodeURIComponent(req.user.email)}&platform=${platform}`;
+  
+        // Fallback sur User-Agent si pas de state
+        if (!isMobile) {
+          const userAgent = req.get('User-Agent') || '';
+          isMobile = userAgent.includes('Expo') || 
+                     userAgent.includes('Mobile') ||
+                     req.query.mobile === 'true';
+        }
+  
+        console.log('🔍 Détection plateforme callback CORRIGÉE:');
+        console.log('  Est mobile:', isMobile);
+        console.log('  Platform:', platform);
+        console.log('  State query:', req.query.state);
+  
+        if (isMobile) {
+          // ✅ CORRECTION MAJEURE : Redirection mobile ultra-simplifiée
+          const mobileRedirectUrl = `myapp://auth?token=${token}&success=true&email=${encodeURIComponent(req.user.email)}&platform=${platform}`;
+          
+          console.log('📱 Redirection mobile CORRIGÉE vers:', mobileRedirectUrl);
+          
+          // ✅ MÉTHODE 1 : Redirection JavaScript immédiate
+          res.send(`
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <title>Connexion réussie</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <meta charset="utf-8">
+                <style>
+                  body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    margin: 0;
+                    padding: 20px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    text-align: center;
+                    min-height: 100vh;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                  }
+                  .container {
+                    max-width: 400px;
+                    margin: 0 auto;
+                    padding: 30px;
+                    background: rgba(255,255,255,0.1);
+                    border-radius: 20px;
+                    backdrop-filter: blur(10px);
+                  }
+                  .icon { font-size: 64px; margin-bottom: 20px; }
+                  h1 { margin: 0 0 10px 0; font-size: 24px; }
+                  p { margin: 10px 0; opacity: 0.9; }
+                  .spinner {
+                    border: 3px solid rgba(255,255,255,0.3);
+                    border-radius: 50%;
+                    border-top: 3px solid white;
+                    width: 40px;
+                    height: 40px;
+                    animation: spin 1s linear infinite;
+                    margin: 20px auto;
+                  }
+                  @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                  }
+                  .btn {
+                    display: inline-block;
+                    padding: 12px 24px;
+                    background: white;
+                    color: #667eea;
+                    text-decoration: none;
+                    border-radius: 25px;
+                    font-weight: 600;
+                    margin: 10px;
+                    border: none;
+                    cursor: pointer;
+                    font-size: 14px;
+                  }
+                </style>
+              </head>
+              <body>
+                <div class="container">
+                  <div class="icon">🎉</div>
+                  <h1>Connexion réussie !</h1>
+                  <p>Bienvenue <strong>${req.user.firstName}</strong></p>
+                  <div class="spinner"></div>
+                  <p>Redirection vers l'application...</p>
+                  
+                  <button class="btn" onclick="openApp()">📱 Ouvrir l'app</button>
+                  <button class="btn" onclick="window.close()">❌ Fermer</button>
+                  
+                  <p style="font-size: 12px; margin-top: 30px; opacity: 0.7;">
+                    Si la redirection ne fonctionne pas, cliquez sur "Ouvrir l'app"
+                  </p>
+                </div>
+  
+                <script>
+                  const redirectUrl = '${mobileRedirectUrl}';
+                  
+                  function openApp() {
+                    console.log('🔗 Redirection manuelle vers:', redirectUrl);
+                    window.location.href = redirectUrl;
+                  }
+                  
+                  function autoRedirect() {
+                    console.log('🔗 Redirection automatique vers:', redirectUrl);
+                    try {
+                      // Tentative 1 : Redirection directe
+                      window.location.href = redirectUrl;
+                      
+                      // Tentative 2 : Via setTimeout (parfois nécessaire sur mobile)
+                      setTimeout(() => {
+                        window.location.href = redirectUrl;
+                      }, 500);
+                      
+                    } catch (e) {
+                      console.error('❌ Erreur redirection:', e);
+                    }
+                  }
+                  
+                  // Lancer la redirection automatique immédiatement
+                  autoRedirect();
+                  
+                  // Redirection de secours après 3 secondes
+                  setTimeout(autoRedirect, 3000);
+                  
+                  // Fermer automatiquement après 15 secondes
+                  setTimeout(() => {
+                    try {
+                      window.close();
+                    } catch (e) {
+                      console.log('Info: Impossible de fermer automatiquement');
+                    }
+                  }, 15000);
+                </script>
+              </body>
+            </html>
+          `);
+        } else {
+          // Redirection web classique (pour les tests en développement)
+          const webRedirectUrl = process.env.NODE_ENV === 'production' 
+            ? `myapp://auth?token=${token}&success=true`
+            : `http://localhost:3000/auth/success?token=${token}`;
+          
+          console.log('🌐 Redirection web vers:', webRedirectUrl);
+          res.redirect(webRedirectUrl);
+        }
         
-        console.log('📱 Redirection mobile CORRIGÉE vers:', mobileRedirectUrl);
+      } catch (error) {
+        console.error('❌ Erreur callback Google:', error);
         
-        // Page HTML qui redirige automatiquement vers l'app mobile
+        const errorRedirectUrl = `myapp://auth?error=${encodeURIComponent('Erreur lors de la connexion Google')}&success=false`;
+        
         res.send(`
+          <!DOCTYPE html>
           <html>
             <head>
-              <title>Connexion Google réussie</title>
+              <title>Erreur de connexion</title>
               <meta name="viewport" content="width=device-width, initial-scale=1">
               <script>
-                console.log('🔗 Redirection vers: ${mobileRedirectUrl}');
-                
-                // Fonction de redirection
-                function redirectToApp() {
-                  try {
-                    console.log('📱 Tentative de redirection...');
-                    window.location.href = '${mobileRedirectUrl}';
-                  } catch (e) {
-                    console.error('❌ Erreur redirection:', e);
-                  }
-                }
-                
-                // Redirection immédiate
-                redirectToApp();
-                
-                // Redirection de secours après 1 seconde
-                setTimeout(redirectToApp, 1000);
-                
-                // Message de confirmation après 3 secondes
                 setTimeout(() => {
-                  console.log('✅ Redirections envoyées');
-                }, 3000);
+                  window.location.href = '${errorRedirectUrl}';
+                }, 2000);
               </script>
             </head>
-            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; min-height: 100vh; display: flex; flex-direction: column; justify-content: center;">
+            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #ef4444; color: white; min-height: 100vh; display: flex; flex-direction: column; justify-content: center;">
               <div>
-                <h1>🎉 Connexion Google réussie !</h1>
-                <p>Bienvenue <strong>${req.user.firstName} ${req.user.lastName}</strong></p>
-                <p style="margin: 30px 0;">Redirection vers l'application mobile...</p>
-                
-                <button onclick="window.location.href='${mobileRedirectUrl}'" style="background: white; color: #667eea; border: none; padding: 15px 30px; border-radius: 8px; font-size: 16px; cursor: pointer; margin: 10px;">
-                  📱 Ouvrir l'application
+                <h1>❌ Erreur de connexion</h1>
+                <p>Une erreur est survenue lors de la connexion avec Google.</p>
+                <p>Redirection vers l'application mobile...</p>
+                <button onclick="window.location.href='${errorRedirectUrl}'" style="background: white; color: #ef4444; border: none; padding: 15px 30px; border-radius: 8px; font-size: 16px; cursor: pointer;">
+                  Retourner à l'application
                 </button>
-                
-                <br>
-                
-                <button onclick="window.close()" style="background: transparent; color: white; border: 1px solid white; padding: 10px 20px; border-radius: 8px; font-size: 14px; cursor: pointer; margin: 10px;">
-                  ❌ Fermer cette fenêtre
-                </button>
-                
-                <p style="font-size: 12px; margin-top: 30px; opacity: 0.8;">
-                  Si la redirection ne fonctionne pas, cliquez sur "Ouvrir l'application"<br>
-                  Platform: ${platform} | Mobile: ${isMobile}
-                </p>
-                
-                <details style="margin-top: 20px; font-size: 10px;">
-                  <summary>Debug Info</summary>
-                  <pre style="text-align: left; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px; margin-top: 10px;">
-Token: ${token.substring(0, 50)}...
-URL: ${mobileRedirectUrl}
-User: ${req.user.email}
-                  </pre>
-                </details>
               </div>
-              
-              <script>
-                // Fermer automatiquement après 10 secondes
-                setTimeout(() => {
-                  try {
-                    window.close();
-                  } catch (e) {
-                    console.log('Info: Impossible de fermer automatiquement');
-                  }
-                }, 10000);
-              </script>
             </body>
           </html>
         `);
-      } else {
-        // Redirection web classique (pour les tests en développement)
-        const webRedirectUrl = process.env.NODE_ENV === 'production' 
-          ? `myapp://auth?token=${token}&success=true`
-          : `http://localhost:3000/auth/success?token=${token}`;
-        
-        console.log('🌐 Redirection web vers:', webRedirectUrl);
-        res.redirect(webRedirectUrl);
       }
-      
-    } catch (error) {
-      console.error('❌ Erreur callback Google:', error);
-      
-      const errorRedirectUrl = `myapp://auth?error=${encodeURIComponent('Erreur lors de la connexion Google')}&success=false`;
-      
-      res.send(`
-        <html>
-          <head>
-            <title>Erreur de connexion</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <script>
-              setTimeout(() => {
-                window.location.href = '${errorRedirectUrl}';
-              }, 2000);
-            </script>
-          </head>
-          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #ef4444; color: white; min-height: 100vh; display: flex; flex-direction: column; justify-content: center;">
-            <div>
-              <h1>❌ Erreur de connexion</h1>
-              <p>Une erreur est survenue lors de la connexion avec Google.</p>
-              <p>Redirection vers l'application mobile...</p>
-              <button onclick="window.location.href='${errorRedirectUrl}'" style="background: white; color: #ef4444; border: none; padding: 15px 30px; border-radius: 8px; font-size: 16px; cursor: pointer;">
-                Retourner à l'application
-              </button>
-            </div>
-          </body>
-        </html>
-      `);
     }
-  }
-);
+  );
 
 /**
  * @route   GET /api/auth/google/mobile-token

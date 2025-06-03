@@ -19,10 +19,31 @@
         "backgroundColor": "#667eea"
       },
       "package": "com.mobileapp.app",
-      "scheme": "myapp"
+      "scheme": "myapp",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "myapp"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "scheme": "myapp",
-    "plugins": [],
+    "plugins": [
+      [
+        "expo-linking",
+        {
+          "scheme": "myapp"
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "b458eb82-4050-449c-b1c0-a4c98242744f"

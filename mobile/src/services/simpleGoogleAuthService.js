@@ -6,7 +6,7 @@ import { Platform } from 'react-native';
 WebBrowser.maybeCompleteAuthSession();
 
 /**
- * Service Google Auth simplifié pour éviter les conflits
+ * Service Google Auth simplifié - VERSION CORRIGÉE
  */
 class SimpleGoogleAuthService {
   
@@ -17,7 +17,7 @@ class SimpleGoogleAuthService {
   }
 
   /**
-   * Connexion Google OAuth via WebBrowser
+   * Connexion Google OAuth via WebBrowser - VERSION CORRIGÉE
    */
   async signInWithGoogle() {
     try {
@@ -28,59 +28,32 @@ class SimpleGoogleAuthService {
       
       console.log('🌐 Ouverture URL:', authUrl);
 
-      // Configuration pour retourner vers l'app
-      const result = await WebBrowser.openAuthSessionAsync(
-        authUrl,
-        'myapp://auth', // Deep link de retour
-        {
-          dismissButtonStyle: 'close',
-          readerMode: false,
-          enableBarCollapsing: false,
-          showInRecents: false,
-          enableDefaultShareMenuItem: false,
-        }
-      );
+      // ✅ CORRECTION : Utiliser openBrowserAsync au lieu de openAuthSessionAsync
+      const result = await WebBrowser.openBrowserAsync(authUrl, {
+        dismissButtonStyle: 'close',
+        readerMode: false,
+        enableBarCollapsing: false,
+        showInRecents: false,
+        enableDefaultShareMenuItem: false,
+        // ✅ IMPORTANT : Définir l'app à ouvrir après succès
+        returnUrl: 'myapp://auth'
+      });
 
       console.log('📱 Résultat WebBrowser:', result.type);
 
-      if (result.type === 'success') {
-        // Extraire le token de l'URL de retour
-        const url = result.url;
-        console.log('🔗 URL de retour:', url);
-        
-        if (url && (url.includes('myapp://') || url.includes('mobileapp://'))) {
-          return await this.parseAuthResult(url);
-        } else {
-          console.log('⚠️ URL de retour inattendue:', url);
-          return {
-            success: false,
-            error: 'URL de retour inattendue',
-            cancelled: false
-          };
-        }
-
-      } else if (result.type === 'cancel') {
+      // ✅ NOUVELLE APPROCHE : Attendre le deep link au lieu de parser le résultat
+      if (result.type === 'cancel') {
         console.log('❌ Authentification annulée par l\'utilisateur');
         return {
           success: false,
           error: 'Authentification annulée',
           cancelled: true
         };
-      } else if (result.type === 'dismiss') {
-        console.log('❌ Fenêtre fermée par l\'utilisateur');
-        return {
-          success: false,
-          error: 'Fenêtre d\'authentification fermée',
-          cancelled: true
-        };
-      } else {
-        console.log('❌ Erreur WebBrowser:', result);
-        return {
-          success: false,
-          error: 'Erreur lors de l\'authentification',
-          cancelled: false
-        };
       }
+
+      // ✅ IMPORTANT : Attendre le deep link
+      console.log('⏳ Attente du deep link de retour...');
+      return await this.waitForAuthResult();
 
     } catch (error) {
       console.error('❌ Erreur Google Auth:', error);
@@ -93,11 +66,66 @@ class SimpleGoogleAuthService {
   }
 
   /**
-   * Parser le résultat d'authentification depuis l'URL
+   * ✅ NOUVELLE MÉTHODE : Attendre le résultat d'authentification via deep link
+   */
+  async waitForAuthResult() {
+    return new Promise((resolve) => {
+      let timeoutId;
+      let linkingSubscription;
+
+      // Timeout après 60 secondes
+      timeoutId = setTimeout(() => {
+        console.log('⏰ Timeout - Aucun deep link reçu');
+        if (linkingSubscription) {
+          linkingSubscription.remove();
+        }
+        resolve({
+          success: false,
+          error: 'Timeout - Aucun résultat reçu',
+          cancelled: true
+        });
+      }, 60000);
+
+      // Écouter les deep links
+      linkingSubscription = Linking.addEventListener('url', ({ url }) => {
+        console.log('🔗 Deep link reçu dans Google Auth:', url);
+        
+        // Nettoyer les listeners
+        clearTimeout(timeoutId);
+        if (linkingSubscription) {
+          linkingSubscription.remove();
+        }
+
+        // Parser le résultat
+        this.parseAuthResult(url).then(result => {
+          resolve(result);
+        }).catch(error => {
+          console.error('❌ Erreur parsing deep link:', error);
+          resolve({
+            success: false,
+            error: 'Erreur lors du traitement du résultat'
+          });
+        });
+      });
+
+      console.log('👂 Écoute des deep links activée...');
+    });
+  }
+
+  /**
+   * Parser le résultat d'authentification depuis l'URL - AMÉLIORÉ
    */
   async parseAuthResult(url) {
     try {
       console.log('🔍 Parsing du résultat d\'auth:', url);
+
+      if (!url || (!url.includes('myapp://') && !url.includes('mobileapp://'))) {
+        return {
+          success: false,
+          error: 'URL de retour invalide',
+          cancelled: false
+        };
+      }
 
       // Normaliser l'URL pour le parsing
       const normalizedUrl = url
@@ -171,8 +199,7 @@ class SimpleGoogleAuthService {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
           'User-Agent': 'Mobile-App-Expo'
-        },
-        timeout: 10000 // 10 secondes
+        }
       });
 
       console.log('📡 Réponse API check-token:', response.status);
@@ -216,8 +243,7 @@ class SimpleGoogleAuthService {
         headers: {
           'Content-Type': 'application/json',
           'User-Agent': 'Mobile-App-Expo'
-        },
-        timeout: 5000
+        }
       });
 
       if (response.ok) {
