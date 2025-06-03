@@ -228,7 +228,7 @@ router.get('/google', (req, res, next) => {
 });
 /**
  * @route   GET /api/auth/google/callback
- * @desc    Callback après authentification Google - VERSION ULTRA CORRIGÉE
+ * @desc    Callback après authentification Google - BOUTONS CORRIGÉS
  * @access  Public
  */
 router.get('/google/callback',
@@ -242,7 +242,7 @@ router.get('/google/callback',
         
         console.log('✅ Token généré pour:', req.user.email);
   
-        // ✅ CORRECTION : Récupérer les infos mobiles depuis le state
+        // Récupérer les infos mobiles depuis le state
         let isMobile = false;
         let platform = 'unknown';
         
@@ -268,15 +268,14 @@ router.get('/google/callback',
         console.log('🔍 Détection plateforme callback CORRIGÉE:');
         console.log('  Est mobile:', isMobile);
         console.log('  Platform:', platform);
-        console.log('  State query:', req.query.state);
   
         if (isMobile) {
-          // ✅ CORRECTION MAJEURE : Redirection mobile ultra-simplifiée
+          // URL de redirection mobile
           const mobileRedirectUrl = `myapp://auth?token=${token}&success=true&email=${encodeURIComponent(req.user.email)}&platform=${platform}`;
           
-          console.log('📱 Redirection mobile CORRIGÉE vers:', mobileRedirectUrl);
+          console.log('📱 Redirection mobile vers:', mobileRedirectUrl);
           
-          // ✅ MÉTHODE 1 : Redirection JavaScript immédiate
+          // PAGE AVEC BOUTONS QUI FONCTIONNENT
           res.send(`
             <!DOCTYPE html>
             <html>
@@ -308,31 +307,37 @@ router.get('/google/callback',
                   .icon { font-size: 64px; margin-bottom: 20px; }
                   h1 { margin: 0 0 10px 0; font-size: 24px; }
                   p { margin: 10px 0; opacity: 0.9; }
-                  .spinner {
-                    border: 3px solid rgba(255,255,255,0.3);
-                    border-radius: 50%;
-                    border-top: 3px solid white;
-                    width: 40px;
-                    height: 40px;
-                    animation: spin 1s linear infinite;
-                    margin: 20px auto;
-                  }
-                  @keyframes spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                  }
                   .btn {
-                    display: inline-block;
-                    padding: 12px 24px;
+                    display: block;
+                    width: 100%;
+                    padding: 15px 20px;
                     background: white;
                     color: #667eea;
                     text-decoration: none;
                     border-radius: 25px;
                     font-weight: 600;
-                    margin: 10px;
+                    margin: 10px 0;
                     border: none;
                     cursor: pointer;
-                    font-size: 14px;
+                    font-size: 16px;
+                    box-sizing: border-box;
+                  }
+                  .btn:hover { background: #f0f0f0; }
+                  .btn-secondary {
+                    background: transparent;
+                    color: white;
+                    border: 2px solid white;
+                  }
+                  .token-display {
+                    background: rgba(0,0,0,0.3);
+                    padding: 10px;
+                    border-radius: 8px;
+                    font-family: monospace;
+                    font-size: 12px;
+                    word-break: break-all;
+                    margin: 20px 0;
+                    max-height: 100px;
+                    overflow-y: scroll;
                   }
                 </style>
               </head>
@@ -341,61 +346,91 @@ router.get('/google/callback',
                   <div class="icon">🎉</div>
                   <h1>Connexion réussie !</h1>
                   <p>Bienvenue <strong>${req.user.firstName}</strong></p>
-                  <div class="spinner"></div>
-                  <p>Redirection vers l'application...</p>
                   
-                  <button class="btn" onclick="openApp()">📱 Ouvrir l'app</button>
-                  <button class="btn" onclick="window.close()">❌ Fermer</button>
+                  <button class="btn" onclick="openApp()">📱 Ouvrir l'application</button>
+                  <button class="btn btn-secondary" onclick="closeWindow()">❌ Fermer cette fenêtre</button>
                   
-                  <p style="font-size: 12px; margin-top: 30px; opacity: 0.7;">
-                    Si la redirection ne fonctionne pas, cliquez sur "Ouvrir l'app"
-                  </p>
+                  <details style="margin-top: 20px;">
+                    <summary style="cursor: pointer;">🔧 Informations techniques</summary>
+                    <div class="token-display">
+                      <strong>Token:</strong><br>
+                      ${token}
+                    </div>
+                    <div class="token-display">
+                      <strong>URL de redirection:</strong><br>
+                      ${mobileRedirectUrl}
+                    </div>
+                  </details>
                 </div>
   
                 <script>
                   const redirectUrl = '${mobileRedirectUrl}';
                   
                   function openApp() {
-                    console.log('🔗 Redirection manuelle vers:', redirectUrl);
-                    window.location.href = redirectUrl;
-                  }
-                  
-                  function autoRedirect() {
-                    console.log('🔗 Redirection automatique vers:', redirectUrl);
+                    console.log('🔗 Tentative d\'ouverture app:', redirectUrl);
+                    
                     try {
-                      // Tentative 1 : Redirection directe
+                      // Méthode 1: window.location
                       window.location.href = redirectUrl;
                       
-                      // Tentative 2 : Via setTimeout (parfois nécessaire sur mobile)
+                      // Méthode 2: window.open (fallback)
                       setTimeout(() => {
-                        window.location.href = redirectUrl;
-                      }, 500);
+                        window.open(redirectUrl, '_self');
+                      }, 100);
+                      
+                      // Méthode 3: Création d'un lien invisible (fallback)
+                      setTimeout(() => {
+                        const link = document.createElement('a');
+                        link.href = redirectUrl;
+                        link.click();
+                      }, 200);
                       
                     } catch (e) {
-                      console.error('❌ Erreur redirection:', e);
+                      console.error('❌ Erreur ouverture app:', e);
+                      alert('Impossible d\\'ouvrir l\\'application automatiquement. Copiez le token et utilisez-le manuellement.');
                     }
                   }
                   
-                  // Lancer la redirection automatique immédiatement
-                  autoRedirect();
-                  
-                  // Redirection de secours après 3 secondes
-                  setTimeout(autoRedirect, 3000);
-                  
-                  // Fermer automatiquement après 15 secondes
-                  setTimeout(() => {
+                  function closeWindow() {
+                    console.log('🚪 Tentative de fermeture...');
+                    
                     try {
+                      // Méthode 1: window.close()
                       window.close();
+                      
+                      // Méthode 2: history.back() (fallback)
+                      setTimeout(() => {
+                        window.history.back();
+                      }, 100);
+                      
+                      // Méthode 3: Redirection vers page vide (fallback)
+                      setTimeout(() => {
+                        window.location.href = 'about:blank';
+                      }, 200);
+                      
                     } catch (e) {
-                      console.log('Info: Impossible de fermer automatiquement');
+                      console.error('❌ Erreur fermeture:', e);
+                      alert('Fermez manuellement cette fenêtre');
                     }
-                  }, 15000);
+                  }
+                  
+                  // Tentative automatique d'ouverture de l'app
+                  setTimeout(() => {
+                    console.log('🚀 Tentative automatique d\\'ouverture...');
+                    openApp();
+                  }, 1000);
+                  
+                  // Fermeture automatique après 10 secondes si pas d'interaction
+                  setTimeout(() => {
+                    console.log('⏰ Fermeture automatique après timeout');
+                    closeWindow();
+                  }, 10000);
                 </script>
               </body>
             </html>
           `);
         } else {
-          // Redirection web classique (pour les tests en développement)
+          // Redirection web classique
           const webRedirectUrl = process.env.NODE_ENV === 'production' 
             ? `myapp://auth?token=${token}&success=true`
             : `http://localhost:3000/auth/success?token=${token}`;
@@ -407,36 +442,20 @@ router.get('/google/callback',
       } catch (error) {
         console.error('❌ Erreur callback Google:', error);
         
-        const errorRedirectUrl = `myapp://auth?error=${encodeURIComponent('Erreur lors de la connexion Google')}&success=false`;
-        
         res.send(`
-          <!DOCTYPE html>
           <html>
-            <head>
-              <title>Erreur de connexion</title>
-              <meta name="viewport" content="width=device-width, initial-scale=1">
-              <script>
-                setTimeout(() => {
-                  window.location.href = '${errorRedirectUrl}';
-                }, 2000);
-              </script>
-            </head>
-            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #ef4444; color: white; min-height: 100vh; display: flex; flex-direction: column; justify-content: center;">
-              <div>
-                <h1>❌ Erreur de connexion</h1>
-                <p>Une erreur est survenue lors de la connexion avec Google.</p>
-                <p>Redirection vers l'application mobile...</p>
-                <button onclick="window.location.href='${errorRedirectUrl}'" style="background: white; color: #ef4444; border: none; padding: 15px 30px; border-radius: 8px; font-size: 16px; cursor: pointer;">
-                  Retourner à l'application
-                </button>
-              </div>
+            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #ef4444; color: white;">
+              <h1>❌ Erreur de connexion</h1>
+              <p>Une erreur est survenue lors de la connexion avec Google.</p>
+              <button onclick="window.close()" style="background: white; color: #ef4444; border: none; padding: 15px 30px; border-radius: 8px; font-size: 16px; cursor: pointer;">
+                Fermer
+              </button>
             </body>
           </html>
         `);
       }
     }
   );
-
 /**
  * @route   GET /api/auth/google/mobile-token
  * @desc    Récupérer le token pour l'app mobile après OAuth

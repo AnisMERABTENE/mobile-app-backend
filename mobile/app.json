@@ -36,14 +36,7 @@
       ]
     },
     "scheme": "myapp",
-    "plugins": [
-      [
-        "expo-linking",
-        {
-          "scheme": "myapp"
-        }
-      ]
-    ],
+    "plugins": [],
     "extra": {
       "eas": {
         "projectId": "b458eb82-4050-449c-b1c0-a4c98242744f"
