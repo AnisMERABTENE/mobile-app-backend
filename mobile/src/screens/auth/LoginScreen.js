@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import * as WebBrowser from 'expo-web-browser';
+import AndroidGoogleAuthService from '../../services/androidGoogleAuthService';
 import {
   View,
   Text,
@@ -22,7 +22,7 @@ import Loading from '../../components/Loading';
 import colors, { getGradientString } from '../../styles/colors';
 
 const LoginScreen = ({ navigation }) => {
-  const { login, loginWithGoogle, isLoading, error, clearError, getRememberedEmail } = useAuth();
+  const { login, loginWithGoogle, isLoading, error, clearError, getRememberedEmail,handleAuthDeepLink  } = useAuth();
   
   const [formData, setFormData] = useState({
     email: '',
@@ -108,18 +108,72 @@ const LoginScreen = ({ navigation }) => {
   const handleGoogleLogin = async () => {
     try {
       setGoogleLoading(true);
-      console.log('🔵 Tentative de connexion Google native...');
+      console.log('🔵 Démarrage connexion Google Android APK...');
       
-      // Utiliser le service Google Auth NATIF
-      const result = await loginWithGoogle();
+      // Test de connexion d'abord
+      const connectionTest = await AndroidGoogleAuthService.testConnection();
+      if (!connectionTest.success) {
+        Alert.alert('Erreur de connexion', 'Impossible de contacter le serveur d\'authentification');
+        return;
+      }
       
-      if (!result.success && !result.cancelled) {
+      // Lancer l'authentification Google
+      const result = await AndroidGoogleAuthService.signInWithGoogle();
+      
+      if (result.success) {
+        console.log('✅ Connexion Google réussie pour:', result.user?.email);
+        
+        // Utiliser la fonction du contexte pour traiter le résultat
+        const authResult = await handleAuthDeepLink(`myapp://auth?token=${result.token}&success=true&email=${encodeURIComponent(result.user?.email)}`);
+        
+        if (authResult.success) {
+          Alert.alert('Connexion réussie !', `Bienvenue ${result.user?.firstName || result.user?.email} !`);
+        } else {
+          Alert.alert('Erreur', authResult.error);
+        }
+      } else if (result.cancelled) {
+        console.log('ℹ️ Connexion Google annulée par l\'utilisateur');
+        // Ne pas afficher d'erreur pour une annulation
+      } else {
+        console.error('❌ Échec connexion Google:', result.error);
         Alert.alert('Erreur de connexion Google', result.error);
       }
       
     } catch (error) {
       console.error('❌ Erreur Google login:', error);
-      Alert.alert('Erreur', 'Une erreur inattendue s\'est produite');
+      Alert.alert('Erreur', 'Une erreur inattendue s\'est produite lors de l\'authentification Google');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+  const testTokenDirectly = async () => {
+    try {
+      setGoogleLoading(true);
+      console.log('🧪 Test direct du token...');
+      
+      // Token de test (remplace par un token valide de tes logs)
+      const testToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4M2NiYjhkYjJjMWFiODQ4YzE3OTc5MCIsImVtYWlsIjoiYW5pc3NhcGExMzZAZ21haWwuY29tIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDkwNzI3MDUsImV4cCI6MTc0OTY3NzUwNSwiYXVkIjoibW9iaWxlLWFwcC11c2VycyIsImlzcyI6Im1vYmlsZS1hcHAtYmFja2VuZCJ9.a2yDUkEQOME-5Xgl2tLchlbvKAR_qtWxWdFUJbgccHI";
+      
+      // Valider d'abord le token
+      const validation = await AndroidGoogleAuthService.validateTokenWithBackend(testToken);
+      
+      if (validation.success) {
+        // Simuler le deep link complet
+        const fakeUrl = `myapp://auth?token=${testToken}&success=true&email=${encodeURIComponent(validation.user.email)}&platform=android`;
+        const result = await handleAuthDeepLink(fakeUrl);
+        
+        if (result.success) {
+          Alert.alert('✅ Test réussi !', `Connexion réussie pour ${result.user?.email}`);
+        } else {
+          Alert.alert('❌ Test échoué', result.error);
+        }
+      } else {
+        Alert.alert('❌ Token invalide', 'Le token de test a expiré ou est invalide');
+      }
+      
+    } catch (error) {
+      console.error('❌ Erreur test:', error);
+      Alert.alert('❌ Erreur', error.message);
     } finally {
       setGoogleLoading(false);
     }
@@ -132,10 +186,7 @@ const LoginScreen = ({ navigation }) => {
   const handleRegister = () => {
     navigation.navigate('Register');
   };
-
-  if (isLoading && !googleLoading) {
-    return <Loading fullScreen gradient text="Connexion en cours..." />;
-  }
+ 
 
   return (
     <SafeAreaView style={styles.container}>
@@ -174,7 +225,15 @@ const LoginScreen = ({ navigation }) => {
             gradient={false}
             style={styles.googleButton}
           />
-
+            {/* Trouve le bouton Google et ajoute ça juste après */}
+<Button
+  title="🧪 TEST TOKEN DIRECT"
+  variant="outline"
+  onPress={testTokenDirectly}
+  fullWidth
+  style={{ marginTop: 10, backgroundColor: '#ff6b35', borderColor: '#ff6b35' }}
+  textStyle={{ color: 'white' }}
+/>
           {/* Divider */}
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
