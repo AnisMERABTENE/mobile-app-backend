@@ -295,10 +295,13 @@ router.get('/google/callback',
 
       if (isMobile) {
         // ✅ REDIRECTION SPÉCIALE POUR ANDROID APK
-        if (isAPK && platform === 'android') {
-          console.log('🤖 Redirection spéciale Android APK...');
-          return res.redirect(`/api/auth/google/android-callback?token=${token}&email=${encodeURIComponent(req.user.email)}&user_id=${req.user._id}`);
-        }
+        if (isAPK || platform === 'android' || userAgent.includes('Android')) {
+            console.log('🤖 Redirection spéciale Android APK détectée...');
+            console.log('  - isAPK:', isAPK);
+            console.log('  - platform:', platform);  
+            console.log('  - userAgent contient Android:', userAgent.includes('Android'));
+            return res.redirect(`/api/auth/google/android-callback?token=${token}&email=${encodeURIComponent(req.user.email)}&user_id=${req.user._id}`);
+          }
 
         // URL de redirection mobile standard
         const mobileRedirectUrl = `myapp://auth?token=${token}&success=true&email=${encodeURIComponent(req.user.email)}&platform=${platform}`;

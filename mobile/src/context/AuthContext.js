@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import StorageService from '../utils/storage';
 import AuthService from '../services/authService';
-import SimpleGoogleAuthService from '../services/simpleGoogleAuthService'; // ✅ CHANGEMENT ICI
+import AndroidGoogleAuthService from '../services/androidGoogleAuthService'; // ✅ NOUVEAU SERVICE ANDROID
 
 // État initial
 const initialState = {
@@ -183,8 +183,7 @@ export const AuthProvider = ({ children }) => {
       }
 
       // Appeler le service Google Auth simplifié
-      const result = await SimpleGoogleAuthService.signInWithGoogle();
-
+      const result = await AndroidGoogleAuthService.signInWithGoogle();
       console.log('📱 Résultat Google Auth:', {
         success: result.success,
         cancelled: result.cancelled,

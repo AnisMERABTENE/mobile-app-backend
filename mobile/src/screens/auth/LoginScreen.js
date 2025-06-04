@@ -110,27 +110,12 @@ const LoginScreen = ({ navigation }) => {
       setGoogleLoading(true);
       console.log('🔵 Démarrage connexion Google Android APK...');
       
-      // Test de connexion d'abord
-      const connectionTest = await AndroidGoogleAuthService.testConnection();
-      if (!connectionTest.success) {
-        Alert.alert('Erreur de connexion', 'Impossible de contacter le serveur d\'authentification');
-        return;
-      }
-      
-      // Lancer l'authentification Google
-      const result = await AndroidGoogleAuthService.signInWithGoogle();
+      // ✅ UTILISE DIRECTEMENT le contexte d'authentification
+      const result = await loginWithGoogle();
       
       if (result.success) {
-        console.log('✅ Connexion Google réussie pour:', result.user?.email);
-        
-        // Utiliser la fonction du contexte pour traiter le résultat
-        const authResult = await handleAuthDeepLink(`myapp://auth?token=${result.token}&success=true&email=${encodeURIComponent(result.user?.email)}`);
-        
-        if (authResult.success) {
-          Alert.alert('Connexion réussie !', `Bienvenue ${result.user?.firstName || result.user?.email} !`);
-        } else {
-          Alert.alert('Erreur', authResult.error);
-        }
+        console.log('✅ Connexion Google réussie');
+        // La navigation se fait automatiquement via AuthContext
       } else if (result.cancelled) {
         console.log('ℹ️ Connexion Google annulée par l\'utilisateur');
         // Ne pas afficher d'erreur pour une annulation
