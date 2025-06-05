@@ -6,8 +6,7 @@ import { Platform } from 'react-native';
 WebBrowser.maybeCompleteAuthSession();
 
 /**
- * Service Google Auth unifié et optimisé
- * Remplace tous les autres services Google Auth pour simplifier
+ * Service Google Auth unifié et optimisé - ✅ CORRIGÉ URLSearchParams
  */
 class GoogleAuthService {
   
@@ -156,7 +155,7 @@ class GoogleAuthService {
   }
 
   /**
-   * Parser et valider le résultat d'authentification
+   * ✅ PARSER CORRIGÉ - Sans URLSearchParams
    */
   async parseAndValidateAuthResult(url) {
     try {
@@ -172,41 +171,33 @@ class GoogleAuthService {
         };
       }
 
-      // Normaliser l'URL pour le parsing
-      const normalizedUrl = url
-        .replace('myapp://', 'https://temp.com/')
-        .replace('mobileapp://', 'https://temp.com/');
-
-      const urlObj = new URL(normalizedUrl);
-      const token = urlObj.searchParams.get('token');
-      const error = urlObj.searchParams.get('error');
-      const success = urlObj.searchParams.get('success');
-      const email = urlObj.searchParams.get('email');
+      // ✅ CORRECTION : Parser manuellement les paramètres sans URLSearchParams
+      const params = this.parseUrlParams(url);
 
       console.log('📋 Paramètres Google Auth extraits:', {
-        hasToken: !!token,
-        tokenLength: token?.length,
-        error: error,
-        success: success,
-        email: email
+        hasToken: !!params.token,
+        tokenLength: params.token?.length,
+        error: params.error,
+        success: params.success,
+        email: params.email
       });
 
       // Gestion des erreurs OAuth
-      if (error) {
-        console.error('❌ Erreur OAuth Google reçue:', error);
+      if (params.error) {
+        console.error('❌ Erreur OAuth Google reçue:', params.error);
         return {
           success: false,
-          error: 'Erreur Google: ' + decodeURIComponent(error),
+          error: 'Erreur Google: ' + decodeURIComponent(params.error),
           cancelled: false
         };
       }
 
       // Vérification du succès et du token
-      if (success === 'true' && token) {
+      if (params.success === 'true' && params.token) {
         console.log('✅ Token Google reçu, validation en cours...');
         
         // Valider le token avec le backend
-        return await this.validateTokenWithBackend(token);
+        return await this.validateTokenWithBackend(params.token);
       } else {
         console.log('❌ Paramètres Google Auth manquants ou invalides');
         return {
@@ -223,6 +214,36 @@ class GoogleAuthService {
         error: 'Erreur lors du traitement de la réponse Google',
         cancelled: false
       };
+    }
+  }
+
+  /**
+   * ✅ NOUVELLE MÉTHODE : Parser URL params manuellement (compatible React Native)
+   */
+  parseUrlParams(url) {
+    const params = {};
+    
+    try {
+      // Extraire la partie après le ?
+      const queryString = url.split('?')[1];
+      if (!queryString) return params;
+
+      // Séparer les paramètres
+      const pairs = queryString.split('&');
+      
+      for (const pair of pairs) {
+        const [key, value] = pair.split('=');
+        if (key && value !== undefined) {
+          params[key] = decodeURIComponent(value);
+        }
+      }
+      
+      console.log('🔍 Paramètres parsés manuellement:', Object.keys(params));
+      return params;
+      
+    } catch (error) {
+      console.error('❌ Erreur parsing manuel des paramètres:', error);
+      return {};
     }
   }
 
