@@ -108,6 +108,16 @@ try {
   console.error('❌ Erreur chargement routes photos:', error.message);
   console.error('❌ Stack:', error.stack);
 }
+// Routes de test géolocalisation avec gestion d'erreur
+console.log('🔄 Chargement des routes géolocalisation...');
+try {
+  const geolocationRoutes = require('./routes/geolocation-test');
+  app.use('/api/geolocation', geolocationRoutes);
+  console.log('✅ Routes géolocalisation chargées avec succès');
+} catch (error) {
+  console.error('❌ Erreur chargement routes géolocalisation:', error.message);
+  console.error('❌ Stack:', error.stack);
+}
 
 // Route de test email (développement seulement)
 if (process.env.NODE_ENV === 'development') {
