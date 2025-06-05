@@ -6,10 +6,10 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  Slider,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import Slider from '@react-native-community/slider';
 import colors from '../styles/colors';
 
 const LocationSelector = ({
@@ -35,6 +35,8 @@ const LocationSelector = ({
       
       if (status !== 'granted') {
         console.log('📍 Permission de géolocalisation non accordée');
+      } else {
+        console.log('✅ Permission de géolocalisation accordée');
       }
     } catch (error) {
       console.error('❌ Erreur vérification permission:', error);
@@ -43,18 +45,21 @@ const LocationSelector = ({
 
   const requestLocationPermission = async () => {
     try {
+      console.log('🔐 Demande de permission géolocalisation...');
       const { status } = await Location.requestForegroundPermissionsAsync();
       setLocationPermission(status === 'granted');
       
       if (status === 'granted') {
+        console.log('✅ Permission accordée, récupération position...');
         getCurrentLocation();
       } else {
+        console.log('❌ Permission refusée');
         Alert.alert(
           'Permission requise',
-          'La géolocalisation est nécessaire pour poster une demande dans votre zone.',
+          'La géolocalisation est nécessaire pour poster une demande dans votre zone. Veuillez l\'autoriser dans les paramètres.',
           [
             { text: 'Annuler', style: 'cancel' },
-            { text: 'Paramètres', onPress: () => Location.requestForegroundPermissionsAsync() }
+            { text: 'Paramètres', onPress: () => requestLocationPermission() }
           ]
         );
       }
@@ -70,80 +75,118 @@ const LocationSelector = ({
   const getCurrentLocation = async () => {
     try {
       setLoading(true);
-      console.log('📍 Récupération de la position...');
+      console.log('📍 Récupération de la position GPS...');
 
-      // Configuration de la géolocalisation
-      const locationResult = await Location.getCurrentPositionAsync({
+      // Configuration de géolocalisation optimisée
+      const options = {
         accuracy: Location.Accuracy.Balanced,
-        timeout: 15000,
-        maximumAge: 60000, // Cache de 1 minute
-      });
+        timeout: 20000, // 20 secondes
+        maximumAge: 60000, // Cache d'1 minute
+      };
+
+      console.log('🔍 Appel Location.getCurrentPositionAsync...');
+      const locationResult = await Location.getCurrentPositionAsync(options);
 
       const { latitude, longitude } = locationResult.coords;
-      console.log('✅ Position obtenue:', latitude, longitude);
+      console.log('✅ Coordonnées obtenues:', { latitude, longitude });
+      console.log('📡 Précision GPS:', locationResult.coords.accuracy, 'mètres');
 
-      // Géocodage inverse pour obtenir l'adresse
-      const addressResult = await Location.reverseGeocodeAsync({
-        latitude,
-        longitude
-      });
-
-      if (addressResult.length > 0) {
-        const address = addressResult[0];
-        const locationData = {
-          coordinates: [longitude, latitude], // [lng, lat] pour MongoDB
-          address: formatAddress(address),
-          city: address.city || address.subregion || 'Ville inconnue',
-          postalCode: address.postalCode || '',
-          country: address.country || 'France'
-        };
-
-        console.log('✅ Adresse récupérée:', locationData.address);
-        onLocationSelect(locationData);
-      } else {
-        // Si pas d'adresse trouvée, utiliser les coordonnées
-        const locationData = {
-          coordinates: [longitude, latitude],
-          address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
-          city: 'Position actuelle',
-          postalCode: '',
-          country: 'France'
-        };
-        
-        onLocationSelect(locationData);
-      }
+      // Maintenant utiliser notre API backend pour le géocodage inverse
+      await reverseGeocodeWithBackend(latitude, longitude);
 
     } catch (error) {
-      console.error('❌ Erreur géolocalisation:', error);
+      console.error('❌ Erreur géolocalisation GPS:', error);
       
-      let errorMessage = 'Impossible d\'obtenir votre position';
+      let errorMessage = 'Impossible d\'obtenir votre position GPS';
+      let showRetry = true;
       
-      if (error.code === 'TIMEOUT') {
-        errorMessage = 'Délai d\'attente dépassé. Vérifiez votre connexion.';
+      if (error.code === 'TIMEOUT' || error.message.includes('timeout')) {
+        errorMessage = 'Délai d\'attente dépassé. Assurez-vous d\'être dans un endroit avec une bonne réception GPS (près d\'une fenêtre).';
       } else if (error.code === 'UNAVAILABLE') {
-        errorMessage = 'Service de géolocalisation indisponible.';
+        errorMessage = 'Service de géolocalisation indisponible. Vérifiez que le GPS est activé dans les paramètres.';
       } else if (error.code === 'PERMISSION_DENIED') {
         errorMessage = 'Permission de géolocalisation refusée.';
+        showRetry = false;
+      } else if (error.message.includes('Location request timed out')) {
+        errorMessage = 'GPS trop lent. Essayez à l\'extérieur ou près d\'une fenêtre.';
       }
       
-      Alert.alert('Erreur de géolocalisation', errorMessage);
+      Alert.alert(
+        'Erreur GPS', 
+        errorMessage,
+        showRetry ? [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Réessayer', onPress: () => getCurrentLocation() }
+        ] : [
+          { text: 'OK', style: 'default' }
+        ]
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const formatAddress = (address) => {
-    const parts = [];
-    
-    if (address.streetNumber) parts.push(address.streetNumber);
-    if (address.street) parts.push(address.street);
-    if (address.city) parts.push(address.city);
-    if (address.postalCode) parts.push(address.postalCode);
-    
-    return parts.join(', ') || 'Adresse non disponible';
+  const reverseGeocodeWithBackend = async (latitude, longitude) => {
+    try {
+      console.log('🌍 Géocodage inverse avec notre API...');
+      
+      const response = await fetch(
+        'https://mobile-app-backend-production-5d60.up.railway.app/api/geolocation/reverse',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            latitude: latitude,
+            longitude: longitude,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Erreur API: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success && result.location) {
+        console.log('✅ Adresse récupérée:', result.location.address);
+        console.log('🏙️ Ville:', result.location.city);
+        console.log('📮 Code postal:', result.location.postalCode);
+        
+        onLocationSelect(result.location);
+      } else {
+        throw new Error('Réponse API invalide');
+      }
+
+    } catch (error) {
+      console.error('❌ Erreur géocodage backend:', error);
+      
+      // Fallback : utiliser les coordonnées brutes
+      console.log('🔄 Fallback: utilisation des coordonnées brutes');
+      const fallbackLocation = {
+        type: 'Point',
+        coordinates: [longitude, latitude],
+        address: `Position GPS: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
+        city: 'Position détectée',
+        postalCode: '',
+        country: 'France'
+      };
+      
+      onLocationSelect(fallbackLocation);
+      
+      Alert.alert(
+        'Adresse partielle',
+        'Position GPS obtenue, mais impossible de déterminer l\'adresse exacte. Vous pouvez continuer.',
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   const handleLocationPress = async () => {
+    console.log('🎯 Clic sur localisation, permission:', locationPermission);
+    
     if (!locationPermission) {
       const granted = await requestLocationPermission();
       if (!granted) return;
@@ -253,7 +296,7 @@ const LocationSelector = ({
           <View style={styles.radiusInfo}>
             <Ionicons name="information-circle-outline" size={16} color={colors.text.secondary} />
             <Text style={styles.radiusInfoText}>
-              Plus le rayon est large, plus vous toucherez de personnes
+              Les vendeurs dans cette zone recevront votre demande
             </Text>
           </View>
         </View>
