@@ -98,6 +98,17 @@ try {
   console.error('❌ Stack:', error.stack);
 }
 
+// Routes des photos avec gestion d'erreur
+console.log('🔄 Chargement des routes photos...');
+try {
+  const photoRoutes = require('./routes/photos');
+  app.use('/api/photos', photoRoutes);
+  console.log('✅ Routes photos chargées avec succès');
+} catch (error) {
+  console.error('❌ Erreur chargement routes photos:', error.message);
+  console.error('❌ Stack:', error.stack);
+}
+
 // Route de test email (développement seulement)
 if (process.env.NODE_ENV === 'development') {
   app.get('/api/test-email', async (req, res) => {
