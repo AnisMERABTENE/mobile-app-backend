@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import StorageService from '../utils/storage';
 import AuthService from '../services/authService';
-import AndroidGoogleAuthService from '../services/androidGoogleAuthService'; // ✅ NOUVEAU SERVICE ANDROID
+import GoogleAuthService from '../services/googleAuthService'; // ✅ CORRECTION : Import du service unifié
 
 // État initial
 const initialState = {
@@ -105,7 +105,7 @@ export const AuthProvider = ({ children }) => {
               token: token,
             },
           });
-          console.log('✅ Utilisateur automatiquement connecté');
+          console.log('✅ Utilisateur automatiquement connecté:', result.data.user?.email);
         } else {
           // Token invalide, nettoyer le stockage
           await StorageService.logout();
@@ -167,32 +167,28 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Connexion avec Google OAuth simplifié - ✅ VERSION CORRIGÉE
+   * Connexion avec Google OAuth - ✅ VERSION CORRIGÉE ET UNIFIÉE
    */
   const loginWithGoogle = async () => {
     try {
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
-      console.log('🔵 Démarrage connexion Google simplifiée...');
+      console.log('🔵 Démarrage connexion Google via service unifié...');
 
-      // Tester la connexion au service d'abord
-      const connectionTest = await SimpleGoogleAuthService.testConnection();
-      if (!connectionTest.success) {
-        throw new Error('Service non accessible: ' + connectionTest.error);
-      }
-
-      // Appeler le service Google Auth simplifié
-      const result = await AndroidGoogleAuthService.signInWithGoogle();
-      console.log('📱 Résultat Google Auth:', {
+      // ✅ CORRECTION : Utilise maintenant le service unifié
+      const result = await GoogleAuthService.signInWithGoogle();
+      
+      console.log('📱 Résultat Google Auth unifié:', {
         success: result.success,
         cancelled: result.cancelled,
         hasUser: !!result.user,
-        hasToken: !!result.token
+        hasToken: !!result.token,
+        error: result.error
       });
 
       if (result.success) {
-        console.log('✅ Connexion Google simplifiée réussie');
+        console.log('✅ Connexion Google réussie via service unifié');
 
         const { user, token } = result;
 
@@ -211,7 +207,7 @@ export const AuthProvider = ({ children }) => {
         });
 
         console.log('✅ Connexion Google complète pour:', user.email);
-        return { success: true };
+        return { success: true, user };
       } else {
         if (result.cancelled) {
           console.log('ℹ️ Connexion Google annulée par l\'utilisateur');
@@ -224,9 +220,9 @@ export const AuthProvider = ({ children }) => {
         }
       }
     } catch (error) {
-      const errorMessage = 'Erreur lors de la connexion Google';
+      const errorMessage = 'Erreur lors de la connexion Google: ' + error.message;
       dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
-      console.error('❌ Erreur Google login simplifié:', error);
+      console.error('❌ Erreur Google login service unifié:', error);
       return { success: false, error: errorMessage };
     }
   };
@@ -361,11 +357,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Traitement des deep links (utilisé par App.js)
+   * Traitement des deep links - ✅ VERSION AMÉLIORÉE
    */
   const handleAuthDeepLink = async (url) => {
     try {
-      console.log('🔗 Traitement deep link auth:', url);
+      console.log('🔗 Traitement deep link auth dans contexte:', url);
 
       if (!url || !(url.includes('myapp://') || url.includes('mobileapp://'))) {
         return { success: false, error: 'URL non reconnue' };
@@ -387,7 +383,7 @@ export const AuthProvider = ({ children }) => {
       }
 
       if (success === 'true' && token) {
-        console.log('✅ Token reçu via deep link');
+        console.log('✅ Token reçu via deep link contexte');
         
         // Sauvegarder le token temporairement
         await StorageService.saveAuthToken(token);
@@ -410,7 +406,7 @@ export const AuthProvider = ({ children }) => {
           console.log('✅ Connexion Google complète via deep link pour:', user.email);
           return { success: true, user };
         } else {
-          console.error('❌ Erreur récupération profil:', profileResult.error);
+          console.error('❌ Erreur récupération profil via deep link:', profileResult.error);
           await StorageService.removeAuthToken();
           return { success: false, error: 'Impossible de récupérer votre profil' };
         }
@@ -419,8 +415,8 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: 'Paramètres manquants dans le deep link' };
 
     } catch (error) {
-      console.error('❌ Erreur traitement deep link:', error);
-      return { success: false, error: 'Erreur lors du traitement du deep link' };
+      console.error('❌ Erreur traitement deep link contexte:', error);
+      return { success: false, error: 'Erreur lors du traitement du deep link: ' + error.message };
     }
   };
 
@@ -435,7 +431,7 @@ export const AuthProvider = ({ children }) => {
     
     // Actions
     login,
-    loginWithGoogle, // ✅ UTILISE MAINTENANT SimpleGoogleAuthService
+    loginWithGoogle, // ✅ Utilise maintenant GoogleAuthService unifié
     register,
     logout,
     forgotPassword,
@@ -445,8 +441,8 @@ export const AuthProvider = ({ children }) => {
     
     // Utilitaires
     checkAuthStatus,
-    handleAuthDeepLink, // ✅ NOUVEAU - pour les deep links
-    dispatch, // Pour les deep links dans App.js
+    handleAuthDeepLink,
+    dispatch,
   };
 
   return (

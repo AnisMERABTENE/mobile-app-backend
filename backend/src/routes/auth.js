@@ -248,7 +248,7 @@ router.get('/google', (req, res, next) => {
 
 /**
  * @route   GET /api/auth/google/callback
- * @desc    Callback après authentification Google - AMÉLIORÉ ANDROID
+ * @desc    Callback après authentification Google - ✅ CORRIGÉ
  * @access  Public
  */
 router.get('/google/callback',
@@ -279,9 +279,11 @@ router.get('/google/callback',
         console.log('⚠️ Impossible de parser le state, fallback sur User-Agent');
       }
 
+      // ✅ CORRECTION CRITIQUE : Déclarer userAgent AVANT utilisation
+      const userAgent = req.get('User-Agent') || '';
+
       // Fallback sur User-Agent si pas de state
       if (!isMobile) {
-        const userAgent = req.get('User-Agent') || '';
         isMobile = userAgent.includes('Expo') || 
                    userAgent.includes('Mobile') ||
                    req.query.mobile === 'true';
@@ -292,16 +294,17 @@ router.get('/google/callback',
       console.log('  Est mobile:', isMobile);
       console.log('  Platform:', platform);
       console.log('  Est APK:', isAPK);
+      console.log('  User-Agent:', userAgent);
 
       if (isMobile) {
-        // ✅ REDIRECTION SPÉCIALE POUR ANDROID APK
+        // ✅ REDIRECTION SPÉCIALE POUR ANDROID APK - CORRIGÉE
         if (isAPK || platform === 'android' || userAgent.includes('Android')) {
-            console.log('🤖 Redirection spéciale Android APK détectée...');
-            console.log('  - isAPK:', isAPK);
-            console.log('  - platform:', platform);  
-            console.log('  - userAgent contient Android:', userAgent.includes('Android'));
-            return res.redirect(`/api/auth/google/android-callback?token=${token}&email=${encodeURIComponent(req.user.email)}&user_id=${req.user._id}`);
-          }
+          console.log('🤖 Redirection spéciale Android APK détectée...');
+          console.log('  - isAPK:', isAPK);
+          console.log('  - platform:', platform);  
+          console.log('  - userAgent contient Android:', userAgent.includes('Android'));
+          return res.redirect(`/api/auth/google/android-callback?token=${token}&email=${encodeURIComponent(req.user.email)}&user_id=${req.user._id}`);
+        }
 
         // URL de redirection mobile standard
         const mobileRedirectUrl = `myapp://auth?token=${token}&success=true&email=${encodeURIComponent(req.user.email)}&platform=${platform}`;
