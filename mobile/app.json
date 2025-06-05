@@ -26,11 +26,6 @@
           "data": [
             {
               "scheme": "myapp"
-            },
-            {
-              "scheme": "https",
-              "host": "mobile-app-backend-production-5d60.up.railway.app",
-              "pathPrefix": "/auth"
             }
           ],
           "category": [
@@ -44,14 +39,6 @@
       ]
     },
     "scheme": "myapp",
-    "plugins": [
-      [
-        "expo-linking",
-        {
-          "scheme": "myapp"
-        }
-      ]
-    ],
     "extra": {
       "eas": {
         "projectId": "b458eb82-4050-449c-b1c0-a4c98242744f"
