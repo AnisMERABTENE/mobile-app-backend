@@ -87,6 +87,17 @@ try {
   console.error('❌ Stack:', error.stack);
 }
 
+// Routes des demandes avec gestion d'erreur
+console.log('🔄 Chargement des routes requests...');
+try {
+  const requestRoutes = require('./routes/requests');
+  app.use('/api/requests', requestRoutes);
+  console.log('✅ Routes requests chargées avec succès');
+} catch (error) {
+  console.error('❌ Erreur chargement routes requests:', error.message);
+  console.error('❌ Stack:', error.stack);
+}
+
 // Route de test email (développement seulement)
 if (process.env.NODE_ENV === 'development') {
   app.get('/api/test-email', async (req, res) => {
