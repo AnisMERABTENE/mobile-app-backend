@@ -173,7 +173,7 @@ const NewHomeScreen = ({ navigation }) => {
     return Object.keys(errors).length === 0;
   };
 
-  // Soumettre le formulaire
+  // Soumettre le formulaire - VERSION CORRIGÉE
   const handleSubmit = async () => {
     try {
       // Validation
@@ -186,43 +186,82 @@ const NewHomeScreen = ({ navigation }) => {
       setLoading(true);
       console.log('📝 Création de la demande...');
 
-      // 1. Upload des photos d'abord
       let photoUrls = [];
+
+      // 1. Upload des photos SI il y en a
       if (formData.photos.length > 0) {
         console.log('📤 Upload de', formData.photos.length, 'photos...');
         
-        const uploadResult = await PhotoUploadService.uploadMultiplePhotos(
-          formData.photos,
-          (progress, current, total) => {
-            setUploadProgress(progress);
-            console.log(`📤 Upload photo ${current + 1}/${total}: ${Math.round(progress * 100)}%`);
-          }
-        );
-
-        if (uploadResult.success) {
-          photoUrls = uploadResult.photoUrls;
-          console.log('✅ Photos uploadées:', photoUrls.length);
-        } else {
-          console.error('❌ Erreur upload photos:', uploadResult.error);
-          Alert.alert(
-            'Erreur upload', 
-            'Impossible d\'uploader les photos. Voulez-vous continuer sans photos ?',
-            [
-              { text: 'Annuler', style: 'cancel' },
-              { text: 'Continuer', onPress: () => proceedWithRequest([]) }
-            ]
+        try {
+          const uploadResult = await PhotoUploadService.uploadMultiplePhotos(
+            formData.photos,
+            (progress, current, total) => {
+              setUploadProgress(progress);
+              console.log(`📤 Upload photo ${current + 1}/${total}: ${Math.round(progress * 100)}%`);
+            }
           );
-          return;
+
+          if (uploadResult.success) {
+            photoUrls = uploadResult.photoUrls;
+            console.log('✅ Photos uploadées:', photoUrls.length);
+          } else {
+            console.error('❌ Erreur upload photos:', uploadResult.error);
+            
+            // ✅ CORRECTION : Proposer de continuer sans photos
+            const continueWithoutPhotos = await new Promise((resolve) => {
+              Alert.alert(
+                'Erreur upload photos', 
+                `Impossible d'uploader les photos : ${uploadResult.error}\n\nVoulez-vous continuer sans photos ?`,
+                [
+                  { text: 'Annuler', style: 'cancel', onPress: () => resolve(false) },
+                  { text: 'Continuer sans photos', onPress: () => resolve(true) }
+                ]
+              );
+            });
+
+            if (!continueWithoutPhotos) {
+              setLoading(false);
+              setUploadProgress(0);
+              return; // Arrêter ici si l'utilisateur annule
+            }
+            
+            // Continuer sans photos
+            photoUrls = [];
+            console.log('⚠️ Continuation sans photos');
+          }
+        } catch (uploadError) {
+          console.error('❌ Erreur critique upload:', uploadError);
+          
+          // ✅ CORRECTION : Proposer de continuer même en cas d'erreur critique
+          const continueWithoutPhotos = await new Promise((resolve) => {
+            Alert.alert(
+              'Erreur critique upload', 
+              `Erreur technique : ${uploadError.message}\n\nVoulez-vous créer la demande sans photos ?`,
+              [
+                { text: 'Annuler', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'Créer sans photos', onPress: () => resolve(true) }
+              ]
+            );
+          });
+
+          if (!continueWithoutPhotos) {
+            setLoading(false);
+            setUploadProgress(0);
+            return;
+          }
+          
+          photoUrls = [];
         }
+      } else {
+        console.log('ℹ️ Aucune photo à uploader');
       }
 
-      // 2. Créer la demande avec les URLs des photos
+      // 2. Créer la demande (avec ou sans photos)
       await proceedWithRequest(photoUrls);
 
     } catch (error) {
       console.error('❌ Erreur création demande:', error);
       Alert.alert('Erreur', 'Une erreur inattendue s\'est produite');
-    } finally {
       setLoading(false);
       setUploadProgress(0);
     }
@@ -230,6 +269,8 @@ const NewHomeScreen = ({ navigation }) => {
 
   const proceedWithRequest = async (photoUrls) => {
     try {
+      console.log('📝 Création de la demande avec', photoUrls.length, 'photos...');
+      
       // Construire les données de la demande
       const requestData = {
         title: formData.title.trim(),
@@ -244,6 +285,7 @@ const NewHomeScreen = ({ navigation }) => {
       };
 
       console.log('📝 Envoi de la demande au serveur...');
+      console.log('📸 Avec', photoUrls.length, 'photos');
       
       const result = await RequestService.createRequest(requestData);
 
@@ -252,17 +294,22 @@ const NewHomeScreen = ({ navigation }) => {
         
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
+        // ✅ Message de succès adapté selon les photos
+        const successMessage = photoUrls.length > 0 
+          ? `Votre demande "${result.data.title}" a été publiée avec ${photoUrls.length} photo(s). Vous recevrez des notifications quand des personnes répondront.`
+          : `Votre demande "${result.data.title}" a été publiée sans photos. Vous recevrez des notifications quand des personnes répondront.`;
+        
         Alert.alert(
           '🎉 Demande publiée !',
-          'Votre demande a été publiée avec succès. Vous recevrez des notifications quand des personnes répondront.',
+          successMessage,
           [
-            { 
-              text: 'Voir ma demande', 
-              onPress: () => navigation.navigate('RequestDetail', { requestId: result.data._id })
-            },
             { 
               text: 'Nouvelle demande', 
               onPress: () => resetForm()
+            },
+            { 
+              text: 'OK',
+              style: 'default'
             }
           ]
         );
@@ -276,6 +323,36 @@ const NewHomeScreen = ({ navigation }) => {
     } catch (error) {
       console.error('❌ Erreur proceed request:', error);
       Alert.alert('Erreur', 'Impossible de créer la demande');
+    } finally {
+      setLoading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  // ✅ NOUVEAU : Fonction de test upload séparée
+  const handleTestUpload = async () => {
+    try {
+      setLoading(true);
+      console.log('🧪 TEST UPLOAD SEUL...');
+      
+      const result = await PhotoUploadService.uploadMultiplePhotos(
+        formData.photos,
+        (progress, current, total) => {
+          setUploadProgress(progress);
+          console.log(`TEST: ${current + 1}/${total}: ${Math.round(progress * 100)}%`);
+        }
+      );
+      
+      if (result.success) {
+        Alert.alert('✅ Test réussi', `${result.photoUrls.length} photos uploadées sur Railway !`);
+      } else {
+        Alert.alert('❌ Test échoué', result.error);
+      }
+    } catch (error) {
+      Alert.alert('❌ Erreur test', error.message);
+    } finally {
+      setLoading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -305,6 +382,7 @@ const NewHomeScreen = ({ navigation }) => {
       photos: []
     });
     setFormErrors({});
+    console.log('🔄 Formulaire réinitialisé');
   };
 
   if (loadingCategories) {
@@ -393,6 +471,18 @@ const NewHomeScreen = ({ navigation }) => {
             onRadiusChange={handleRadiusChange}
             error={formErrors.location}
           />
+
+          {/* ✅ BOUTON TEST UPLOAD - SYNTAX CORRECTE */}
+          {formData.photos.length > 0 && (
+            <Button
+              title="🧪 Tester upload photos uniquement"
+              variant="outline"
+              onPress={handleTestUpload}
+              fullWidth
+              style={{ marginBottom: 16 }}
+              loading={loading}
+            />
+          )}
 
           {/* Bouton de soumission */}
           <Button

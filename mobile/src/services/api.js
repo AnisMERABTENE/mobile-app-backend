@@ -2,22 +2,23 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 
-// Configuration de l'URL de base de l'API
+// ✅ CONFIGURATION RAILWAY UNIQUEMENT
 const getBaseURL = () => {
-  // Utilise toujours l'URL Railway déployée
+  // Toujours utiliser Railway - plus simple et stable
   return 'https://mobile-app-backend-production-5d60.up.railway.app/api';
 };
 
 // Créer l'instance axios
 const api = axios.create({
   baseURL: getBaseURL(),
-  timeout: 10000, // 10 secondes
+  timeout: 30000, // ✅ CORRECTION : Augmenter le timeout à 30 secondes
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
 console.log('🔗 API configurée avec baseURL:', getBaseURL());
+console.log('🔧 Mode développement:', __DEV__ ? 'OUI' : 'NON');
 
 // Intercepteur pour ajouter automatiquement le token JWT
 api.interceptors.request.use(
@@ -31,7 +32,7 @@ api.interceptors.request.use(
         console.log('🔑 Token ajouté à la requête');
       }
       
-      console.log(`📤 ${config.method?.toUpperCase()} ${config.url}`);
+      console.log(`📤 ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
       return config;
     } catch (error) {
       console.error('❌ Erreur lors de l\'ajout du token:', error);
@@ -53,7 +54,7 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
-    console.error('❌ Erreur API:', error.response?.status, error.response?.data?.error);
+    console.error('❌ Erreur API:', error.response?.status, error.response?.data?.error || error.message);
     
     // Si le token est expiré (401) et qu'on n'a pas déjà tenté de le renouveler
     if (error.response?.status === 401 && !originalRequest._retry) {
@@ -121,7 +122,7 @@ export const apiRequest = {
   },
 };
 
-// Gestionnaire d'erreurs API
+// Gestionnaire d'erreurs API - AMÉLIORÉ
 const handleApiError = (error) => {
   let errorMessage = 'Une erreur est survenue';
   let errorCode = 'UNKNOWN_ERROR';
@@ -157,6 +158,15 @@ const handleApiError = (error) => {
     // Erreur réseau
     errorMessage = 'Impossible de contacter le serveur. Vérifiez votre connexion internet.';
     errorCode = 'NETWORK_ERROR';
+    
+    // ✅ AJOUT : Log détaillé pour debug réseau
+    console.error('❌ Détails erreur réseau:', {
+      url: error.config?.url,
+      baseURL: error.config?.baseURL,
+      method: error.config?.method,
+      timeout: error.config?.timeout,
+      message: error.message
+    });
   } else {
     // Autre erreur
     errorMessage = error.message || errorMessage;
@@ -175,12 +185,29 @@ const handleApiError = (error) => {
 // Fonction pour tester la connexion à l'API
 export const testApiConnection = async () => {
   try {
-    console.log('🧪 Test de connexion à l\'API Railway...');
+    console.log('🧪 Test de connexion à l\'API...');
+    console.log('🔗 URL testée:', getBaseURL());
+    
     const response = await api.get('/test');
-    console.log('✅ Connexion API Railway réussie:', response.data);
+    console.log('✅ Connexion API réussie:', response.data);
     return { success: true, data: response.data };
   } catch (error) {
-    console.error('❌ Échec du test de connexion API Railway:', error.message);
+    console.error('❌ Échec du test de connexion API:', error.message);
+    return handleApiError(error);
+  }
+};
+
+// ✅ NOUVELLE FONCTION : Test spécifique pour l'upload
+export const testPhotoUploadEndpoint = async () => {
+  try {
+    console.log('🧪 Test endpoint upload photos...');
+    
+    // Test simple ping vers l'endpoint photos
+    const response = await api.get('/photos/ping');
+    console.log('✅ Endpoint photos accessible:', response.data);
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error('❌ Endpoint photos inaccessible:', error.message);
     return handleApiError(error);
   }
 };

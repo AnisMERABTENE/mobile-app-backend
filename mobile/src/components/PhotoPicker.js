@@ -66,14 +66,31 @@ const PhotoPicker = ({
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        
+        // ✅ CORRECTION : S'assurer que le type MIME est correct
+        let mimeType = asset.type || 'image/jpeg';
+        if (!mimeType.startsWith('image/')) {
+          mimeType = 'image/jpeg'; // Fallback par défaut
+        }
+        
+        // ✅ CORRECTION : Générer un nom de fichier avec la bonne extension
+        let fileName = asset.fileName || `photo_${Date.now()}.jpg`;
+        if (!fileName.includes('.')) {
+          // Si pas d'extension, l'ajouter basé sur le type MIME
+          const extension = mimeType === 'image/png' ? '.png' : '.jpg';
+          fileName = `photo_${Date.now()}${extension}`;
+        }
+        
         const newPhoto = {
           id: Date.now().toString(),
-          uri: result.assets[0].uri,
-          type: result.assets[0].type || 'image/jpeg',
-          name: `photo_${Date.now()}.jpg`,
-          size: result.assets[0].fileSize || 0,
+          uri: asset.uri,
+          type: mimeType,
+          name: fileName,
+          size: asset.fileSize || 0,
         };
         
+        console.log('📸 Photo caméra créée:', newPhoto);
         addPhoto(newPhoto);
       }
     } catch (error) {
@@ -94,20 +111,36 @@ const PhotoPicker = ({
         aspect: [4, 3],
         quality: 0.8,
         base64: false,
-        allowsMultipleSelection: true,
+        allowsMultipleSelection: false, // ✅ CORRECTION : Désactiver sélection multiple pour éviter les problèmes
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const newPhotos = result.assets.map((asset, index) => ({
-          id: (Date.now() + index).toString(),
-          uri: asset.uri,
-          type: asset.type || 'image/jpeg',
-          name: `photo_${Date.now() + index}.jpg`,
-          size: asset.fileSize || 0,
-        }));
-        
-        // Ajouter toutes les photos sélectionnées
-        newPhotos.forEach(photo => addPhoto(photo));
+        result.assets.forEach((asset, index) => {
+          // ✅ CORRECTION : S'assurer que le type MIME est correct
+          let mimeType = asset.type || 'image/jpeg';
+          if (!mimeType.startsWith('image/')) {
+            mimeType = 'image/jpeg'; // Fallback par défaut
+          }
+          
+          // ✅ CORRECTION : Générer un nom de fichier avec la bonne extension
+          let fileName = asset.fileName || `photo_${Date.now() + index}.jpg`;
+          if (!fileName.includes('.')) {
+            // Si pas d'extension, l'ajouter basé sur le type MIME
+            const extension = mimeType === 'image/png' ? '.png' : '.jpg';
+            fileName = `photo_${Date.now() + index}${extension}`;
+          }
+          
+          const newPhoto = {
+            id: (Date.now() + index).toString(),
+            uri: asset.uri,
+            type: mimeType,
+            name: fileName,
+            size: asset.fileSize || 0,
+          };
+          
+          console.log('🖼️ Photo galerie créée:', newPhoto);
+          addPhoto(newPhoto);
+        });
       }
     } catch (error) {
       console.error('❌ Erreur galerie:', error);
