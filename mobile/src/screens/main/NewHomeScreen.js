@@ -267,7 +267,9 @@ const NewHomeScreen = ({ navigation }) => {
     }
   };
 
-  const proceedWithRequest = async (photoUrls) => {
+  // Dans NewHomeScreen.js, modifier la fonction proceedWithRequest
+
+const proceedWithRequest = async (photoUrls) => {
     try {
       console.log('📝 Création de la demande avec', photoUrls.length, 'photos...');
       
@@ -283,18 +285,20 @@ const NewHomeScreen = ({ navigation }) => {
         photos: photoUrls,
         tags: extractTags(formData.description)
       };
-
+  
       console.log('📝 Envoi de la demande au serveur...');
       console.log('📸 Avec', photoUrls.length, 'photos');
       
       const result = await RequestService.createRequest(requestData);
-
+  
       if (result.success) {
         console.log('✅ Demande créée avec succès:', result.data.title);
         
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
-        // ✅ Message de succès adapté selon les photos
+        // ✅ CORRECTION : Réinitialiser automatiquement les champs
+        resetForm();
+        
         const successMessage = photoUrls.length > 0 
           ? `Votre demande "${result.data.title}" a été publiée avec ${photoUrls.length} photo(s). Vous recevrez des notifications quand des personnes répondront.`
           : `Votre demande "${result.data.title}" a été publiée sans photos. Vous recevrez des notifications quand des personnes répondront.`;
@@ -304,22 +308,18 @@ const NewHomeScreen = ({ navigation }) => {
           successMessage,
           [
             { 
-              text: 'Nouvelle demande', 
-              onPress: () => resetForm()
-            },
-            { 
               text: 'OK',
               style: 'default'
             }
           ]
         );
-
+  
       } else {
         console.error('❌ Erreur création demande:', result.error);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert('Erreur', result.error);
       }
-
+  
     } catch (error) {
       console.error('❌ Erreur proceed request:', error);
       Alert.alert('Erreur', 'Impossible de créer la demande');

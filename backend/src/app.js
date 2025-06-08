@@ -108,6 +108,18 @@ try {
   console.error('❌ Erreur chargement routes photos:', error.message);
   console.error('❌ Stack:', error.stack);
 }
+
+// Routes des vendeurs avec gestion d'erreur
+console.log('🔄 Chargement des routes sellers...');
+try {
+  const sellerRoutes = require('./routes/sellers');
+  app.use('/api/sellers', sellerRoutes);
+  console.log('✅ Routes sellers chargées avec succès');
+} catch (error) {
+  console.error('❌ Erreur chargement routes sellers:', error.message);
+  console.error('❌ Stack:', error.stack);
+}
+
 // Routes de test géolocalisation avec gestion d'erreur
 console.log('🔄 Chargement des routes géolocalisation...');
 try {

@@ -1,36 +1,33 @@
-import React from 'react';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import React, { useState } from 'react';
 
 // Screens
 import NewHomeScreen from '../screens/main/NewHomeScreen';
-import HomeScreen from '../screens/main/HomeScreen'; // Ancienne page (gardée pour plus tard)
+import MyRequestsScreen from '../screens/main/MyRequestsScreen';
+import HomeScreen from '../screens/main/HomeScreen'; // Profil
 
-const Stack = createNativeStackNavigator();
+// Components
+import TabNavigator from '../components/TabNavigator';
 
 const MainNavigator = () => {
+  const [currentTab, setCurrentTab] = useState('newRequest');
+
+  const renderCurrentScreen = () => {
+    switch (currentTab) {
+      case 'newRequest':
+        return <NewHomeScreen />;
+      case 'myRequests':
+        return <MyRequestsScreen />;
+      case 'profile':
+        return <HomeScreen />;
+      default:
+        return <NewHomeScreen />;
+    }
+  };
+
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerShown: false,
-        animation: 'slide_from_right',
-      }}
-      initialRouteName="NewHome"
-    >
-      <Stack.Screen 
-        name="NewHome" 
-        component={NewHomeScreen}
-        options={{
-          title: 'Nouvelle demande',
-        }}
-      />
-      <Stack.Screen 
-        name="Profile" 
-        component={HomeScreen}
-        options={{
-          title: 'Profil',
-        }}
-      />
-    </Stack.Navigator>
+    <TabNavigator currentTab={currentTab} onTabChange={setCurrentTab}>
+      {renderCurrentScreen()}
+    </TabNavigator>
   );
 };
 

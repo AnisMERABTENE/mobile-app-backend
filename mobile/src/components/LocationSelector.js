@@ -22,10 +22,16 @@ const LocationSelector = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [locationPermission, setLocationPermission] = useState(null);
+  const [lastLocationTime, setLastLocationTime] = useState(null);
 
-  // Vérifier les permissions au montage
+  // Vérifier les permissions au montage et périodiquement
   useEffect(() => {
     checkLocationPermission();
+    
+    // ✅ NOUVEAU : Vérifier les permissions toutes les 30 secondes si on est sur la page
+    const interval = setInterval(checkLocationPermission, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const checkLocationPermission = async () => {
@@ -72,51 +78,132 @@ const LocationSelector = ({
     }
   };
 
+  // ✅ FONCTION OPTIMISÉE CONTRE LES TIMEOUTS
   const getCurrentLocation = async () => {
     try {
       setLoading(true);
-      console.log('📍 Récupération de la position GPS...');
+      console.log('📍 Récupération de la position GPS (version optimisée)...');
 
-      // Configuration de géolocalisation optimisée
-      const options = {
-        accuracy: Location.Accuracy.Balanced,
-        timeout: 20000, // 20 secondes
-        maximumAge: 60000, // Cache d'1 minute
-      };
+      // ✅ NOUVEAU : Vérifier si on a une position récente (moins de 5 minutes)
+      const now = Date.now();
+      if (lastLocationTime && (now - lastLocationTime) < 5 * 60 * 1000 && location) {
+        console.log('✅ Utilisation de la position mise en cache');
+        setLoading(false);
+        return;
+      }
 
-      console.log('🔍 Appel Location.getCurrentPositionAsync...');
-      const locationResult = await Location.getCurrentPositionAsync(options);
+      // ✅ STRATÉGIE 1 : Position rapide avec précision réduite d'abord
+      console.log('🏃 Tentative position rapide...');
+      
+      try {
+        const quickPosition = await Promise.race([
+          Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Low, // ✅ Précision réduite = plus rapide
+            timeout: 8000, // ✅ Timeout plus court
+            maximumAge: 120000, // ✅ Accepte cache de 2 minutes
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Quick timeout')), 10000)
+          )
+        ]);
 
-      const { latitude, longitude } = locationResult.coords;
-      console.log('✅ Coordonnées obtenues:', { latitude, longitude });
-      console.log('📡 Précision GPS:', locationResult.coords.accuracy, 'mètres');
+        const { latitude, longitude } = quickPosition.coords;
+        console.log('✅ Position rapide obtenue:', { latitude, longitude });
+        
+        // Utiliser cette position temporairement
+        await reverseGeocodeWithBackend(latitude, longitude);
+        setLastLocationTime(now);
+        
+        // ✅ STRATÉGIE 2 : Améliorer la précision en arrière-plan
+        console.log('🎯 Amélioration de la précision en arrière-plan...');
+        
+        setTimeout(async () => {
+          try {
+            const precisePosition = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+              timeout: 15000,
+              maximumAge: 60000,
+            });
+            
+            const preciseCoords = precisePosition.coords;
+            console.log('🎯 Position précise obtenue:', preciseCoords);
+            
+            // Mettre à jour avec la position plus précise
+            await reverseGeocodeWithBackend(preciseCoords.latitude, preciseCoords.longitude);
+            setLastLocationTime(Date.now());
+            
+          } catch (preciseError) {
+            console.log('⚠️ Amélioration précision échouée, garde position rapide');
+          }
+        }, 1000);
+        
+        return;
 
-      // Maintenant utiliser notre API backend pour le géocodage inverse
-      await reverseGeocodeWithBackend(latitude, longitude);
+      } catch (quickError) {
+        console.log('⚠️ Position rapide échouée, tentative normale...');
+      }
+
+      // ✅ STRATÉGIE 3 : Si position rapide échoue, méthode normale avec retry
+      console.log('🔄 Tentative position normale avec retry...');
+      
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          console.log(`📍 Tentative ${attempt}/3...`);
+          
+          const options = {
+            accuracy: attempt === 1 ? Location.Accuracy.Low : Location.Accuracy.Balanced,
+            timeout: attempt * 10000, // 10s, 20s, 30s
+            maximumAge: 180000, // 3 minutes
+          };
+
+          const locationResult = await Location.getCurrentPositionAsync(options);
+          const { latitude, longitude } = locationResult.coords;
+          
+          console.log(`✅ Position obtenue tentative ${attempt}:`, { latitude, longitude });
+          await reverseGeocodeWithBackend(latitude, longitude);
+          setLastLocationTime(now);
+          return;
+
+        } catch (attemptError) {
+          console.log(`❌ Tentative ${attempt} échouée:`, attemptError.message);
+          
+          if (attempt === 3) {
+            throw attemptError;
+          }
+          
+          // Pause entre les tentatives
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
 
     } catch (error) {
-      console.error('❌ Erreur géolocalisation GPS:', error);
+      console.error('❌ Erreur géolocalisation complète:', error);
       
-      let errorMessage = 'Impossible d\'obtenir votre position GPS';
+      let errorMessage = 'Impossible d\'obtenir votre position';
       let showRetry = true;
       
-      if (error.code === 'TIMEOUT' || error.message.includes('timeout')) {
-        errorMessage = 'Délai d\'attente dépassé. Assurez-vous d\'être dans un endroit avec une bonne réception GPS (près d\'une fenêtre).';
-      } else if (error.code === 'UNAVAILABLE') {
-        errorMessage = 'Service de géolocalisation indisponible. Vérifiez que le GPS est activé dans les paramètres.';
+      if (error.message.includes('timeout') || error.message.includes('Quick timeout')) {
+        errorMessage = 'GPS trop lent. Essayez de vous rapprocher d\'une fenêtre ou sortez à l\'extérieur.';
       } else if (error.code === 'PERMISSION_DENIED') {
         errorMessage = 'Permission de géolocalisation refusée.';
         showRetry = false;
-      } else if (error.message.includes('Location request timed out')) {
-        errorMessage = 'GPS trop lent. Essayez à l\'extérieur ou près d\'une fenêtre.';
+      } else if (error.code === 'POSITION_UNAVAILABLE') {
+        errorMessage = 'Position GPS indisponible. Vérifiez que le GPS est activé.';
       }
       
       Alert.alert(
-        'Erreur GPS', 
+        'Erreur de géolocalisation', 
         errorMessage,
         showRetry ? [
           { text: 'Annuler', style: 'cancel' },
-          { text: 'Réessayer', onPress: () => getCurrentLocation() }
+          { 
+            text: 'Réessayer', 
+            onPress: () => {
+              // ✅ Reset cache et réessayer
+              setLastLocationTime(null);
+              getCurrentLocation();
+            }
+          }
         ] : [
           { text: 'OK', style: 'default' }
         ]
@@ -152,9 +239,6 @@ const LocationSelector = ({
       
       if (result.success && result.location) {
         console.log('✅ Adresse récupérée:', result.location.address);
-        console.log('🏙️ Ville:', result.location.city);
-        console.log('📮 Code postal:', result.location.postalCode);
-        
         onLocationSelect(result.location);
       } else {
         throw new Error('Réponse API invalide');
@@ -164,7 +248,6 @@ const LocationSelector = ({
       console.error('❌ Erreur géocodage backend:', error);
       
       // Fallback : utiliser les coordonnées brutes
-      console.log('🔄 Fallback: utilisation des coordonnées brutes');
       const fallbackLocation = {
         type: 'Point',
         coordinates: [longitude, latitude],
@@ -175,23 +258,26 @@ const LocationSelector = ({
       };
       
       onLocationSelect(fallbackLocation);
-      
-      Alert.alert(
-        'Adresse partielle',
-        'Position GPS obtenue, mais impossible de déterminer l\'adresse exacte. Vous pouvez continuer.',
-        [{ text: 'OK' }]
-      );
     }
   };
 
   const handleLocationPress = async () => {
     console.log('🎯 Clic sur localisation, permission:', locationPermission);
     
+    // ✅ NOUVEAU : Re-vérifier les permissions avant chaque utilisation
+    await checkLocationPermission();
+    
     if (!locationPermission) {
       const granted = await requestLocationPermission();
       if (!granted) return;
     }
     
+    getCurrentLocation();
+  };
+
+  // ✅ NOUVEAU : Bouton de refresh si on a déjà une position
+  const handleRefreshLocation = async () => {
+    setLastLocationTime(null); // Reset cache
     getCurrentLocation();
   };
 
@@ -252,14 +338,38 @@ const LocationSelector = ({
           </View>
         </View>
         
-        {!loading && (
+        {/* ✅ NOUVEAU : Bouton refresh si position déjà obtenue */}
+        {!loading && location && (
+          <TouchableOpacity 
+            style={styles.refreshButton}
+            onPress={handleRefreshLocation}
+          >
+            <Ionicons 
+              name="refresh" 
+              size={20} 
+              color={colors.gray[400]} 
+            />
+          </TouchableOpacity>
+        )}
+        
+        {!loading && !location && (
           <Ionicons 
-            name="refresh" 
+            name="chevron-forward" 
             size={20} 
             color={colors.gray[400]} 
           />
         )}
       </TouchableOpacity>
+
+      {/* Indicateur de cache */}
+      {location && lastLocationTime && (
+        <View style={styles.cacheIndicator}>
+          <Ionicons name="time-outline" size={12} color={colors.text.secondary} />
+          <Text style={styles.cacheText}>
+            Position mise en cache {Math.round((Date.now() - lastLocationTime) / 60000)} min
+          </Text>
+        </View>
+      )}
 
       {/* Sélecteur de rayon */}
       {location && (
@@ -365,6 +475,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text.secondary,
     marginTop: 4,
+  },
+  refreshButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  cacheIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  cacheText: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    marginLeft: 4,
   },
   radiusContainer: {
     marginTop: 16,
