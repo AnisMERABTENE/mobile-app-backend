@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/Button';
+import SellerService from '../../services/sellerService';
 import colors, { getGradientString } from '../../styles/colors';
 
 const HomeScreen = ({ navigation }) => {
@@ -30,21 +31,25 @@ const HomeScreen = ({ navigation }) => {
   const checkSellerStatus = async () => {
     try {
       setLoadingSellerCheck(true);
-      // TODO: Appel API pour vérifier si l'utilisateur a un profil vendeur
-      // const result = await SellerService.getMySellerProfile();
-      // if (result.success) {
-      //   setSellerProfile(result.data);
-      // }
+      console.log('🔍 Vérification statut vendeur...');
       
-      // Pour l'instant, on simule qu'il n'est pas vendeur
-      setSellerProfile(null);
+      const result = await SellerService.getMyProfile();
+      if (result.success) {
+        setSellerProfile(result.data);
+        console.log('✅ Profil vendeur trouvé:', result.data.businessName);
+      } else {
+        // C'est NORMAL de ne pas avoir de profil vendeur au début
+        setSellerProfile(null);
+        console.log('ℹ️ Pas de profil vendeur (normal pour nouveaux utilisateurs)');
+      }
     } catch (error) {
-      console.error('❌ Erreur vérification statut vendeur:', error);
+      // Ne pas afficher d'erreur si c'est juste "pas de profil trouvé"
+      console.log('ℹ️ Aucun profil vendeur existant (c\'est normal)');
+      setSellerProfile(null);
     } finally {
       setLoadingSellerCheck(false);
     }
   };
-
   const handleLogout = async () => {
     try {
       await logout();
@@ -62,10 +67,8 @@ const HomeScreen = ({ navigation }) => {
         { 
           text: 'Continuer', 
           onPress: () => {
-            // TODO: Navigation vers l'écran de création de profil vendeur
             console.log('🔄 Redirection vers création profil vendeur...');
-            // navigation.navigate('CreateSellerProfile');
-            Alert.alert('Info', 'Écran de création de profil vendeur en cours de développement...');
+            navigation.navigate('CreateSellerProfile');
           }
         }
       ]
@@ -73,8 +76,8 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const handleManageSellerProfile = () => {
-    // TODO: Navigation vers l'écran de gestion du profil vendeur
     console.log('🔄 Redirection vers gestion profil vendeur...');
+    // TODO: Créer l'écran de gestion du profil vendeur
     Alert.alert('Info', 'Gestion du profil vendeur en cours de développement...');
   };
 
