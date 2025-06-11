@@ -18,7 +18,8 @@ const LocationSelector = ({
   onLocationSelect,
   onRadiusChange,
   error,
-  style
+  style,
+  hideRadiusSelector = false  // 🔧 NOUVEAU : Cacher le slider rayon
 }) => {
   const [loading, setLoading] = useState(false);
   const [locationPermission, setLocationPermission] = useState(null);
@@ -371,8 +372,8 @@ const LocationSelector = ({
         </View>
       )}
 
-      {/* Sélecteur de rayon */}
-      {location && (
+      {/* 🔧 MODIFICATION : Sélecteur de rayon conditionnel */}
+      {location && !hideRadiusSelector && (
         <View style={styles.radiusContainer}>
           <View style={styles.radiusHeader}>
             <Text style={styles.radiusTitle}>Rayon de recherche</Text>

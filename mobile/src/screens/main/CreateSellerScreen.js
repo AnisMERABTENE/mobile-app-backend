@@ -30,13 +30,13 @@ import colors, { getGradientString } from '../../styles/colors';
 const CreateSellerScreen = ({ navigation }) => {
   const { user } = useAuth();
   
-  // État du formulaire
+  // État du formulaire - 🔧 MODIFIÉ : Suppression du serviceRadius
   const [formData, setFormData] = useState({
     businessName: '',
     description: '',
     phone: '',
     location: null,
-    serviceRadius: 10,
+    // serviceRadius supprimé car non nécessaire pour le vendeur
     specialties: [] // [{ category: 'electronique', subCategories: ['smartphones', 'ordinateurs'] }]
   });
 
@@ -139,9 +139,7 @@ const CreateSellerScreen = ({ navigation }) => {
     }
   };
 
-  const handleRadiusChange = (radius) => {
-    setFormData(prev => ({ ...prev, serviceRadius: Math.round(radius) }));
-  };
+  // 🔧 SUPPRIMÉ : handleRadiusChange car non nécessaire pour vendeur
 
   // ✅ NOUVELLE GESTION DES SPÉCIALITÉS
 
@@ -217,14 +215,40 @@ const CreateSellerScreen = ({ navigation }) => {
     }
   };
 
-  // Validation du formulaire
+  // Validation du formulaire - 🔧 MODIFIÉ : Pas de validation serviceRadius
   const validateForm = () => {
-    const validation = SellerService.validateProfileData(formData);
-    setFormErrors(validation.errors);
-    return validation.isValid;
+    const errors = {};
+
+    // Nom d'entreprise
+    if (!formData.businessName || formData.businessName.trim().length < 2) {
+      errors.businessName = 'Le nom de l\'entreprise doit contenir au moins 2 caractères';
+    }
+
+    // Description
+    if (!formData.description || formData.description.trim().length < 10) {
+      errors.description = 'La description doit contenir au moins 10 caractères';
+    }
+
+    // Téléphone
+    if (!formData.phone || !/^[0-9+\-\s().]+$/.test(formData.phone)) {
+      errors.phone = 'Format de téléphone invalide';
+    }
+
+    // Localisation
+    if (!formData.location || !formData.location.coordinates || formData.location.coordinates.length !== 2) {
+      errors.location = 'Localisation requise';
+    }
+
+    // Spécialités
+    if (!formData.specialties || formData.specialties.length === 0) {
+      errors.specialties = 'Au moins une spécialité est requise';
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
-  // Soumettre le formulaire
+  // Soumettre le formulaire - 🔧 MODIFIÉ : Pas de serviceRadius envoyé
   const handleSubmit = async () => {
     try {
       // Validation
@@ -238,8 +262,15 @@ const CreateSellerScreen = ({ navigation }) => {
       console.log('📝 Création du profil vendeur...');
       console.log('📊 Spécialités à envoyer:', formData.specialties);
 
-      // Formater les données
-      const profileData = SellerService.formatProfileData(formData);
+      // Formater les données - 🔧 MODIFIÉ : Pas de serviceRadius
+      const profileData = {
+        businessName: formData.businessName.trim(),
+        description: formData.description.trim(),
+        phone: formData.phone.trim(),
+        location: formData.location,
+        // serviceRadius supprimé - le vendeur n'a besoin que de son adresse
+        specialties: formData.specialties || []
+      };
       
       const result = await SellerService.createProfile(profileData);
 
@@ -302,7 +333,7 @@ const CreateSellerScreen = ({ navigation }) => {
         </TouchableOpacity>
         
         <View style={styles.headerContent}>
-          <Ionicons name="storefront-outline" size={48} color={colors.white} />
+          <Ionicons name="business-outline" size={48} color={colors.white} />
           <Text style={styles.headerTitle}>Devenir vendeur</Text>
           <Text style={styles.headerSubtitle}>
             Créez votre profil professionnel
@@ -358,16 +389,18 @@ const CreateSellerScreen = ({ navigation }) => {
             />
           </View>
 
-          {/* Localisation */}
+          {/* 🔧 SECTION LOCALISATION MODIFIÉE */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Zone d'intervention</Text>
+            <Text style={styles.sectionTitle}>Localisation de votre entreprise</Text>
+            <Text style={styles.sectionSubtitle}>
+              Indiquez l'adresse précise de votre magasin, atelier ou lieu de travail
+            </Text>
             
             <LocationSelector
               location={formData.location}
-              radius={formData.serviceRadius}
               onLocationSelect={handleLocationSelect}
-              onRadiusChange={handleRadiusChange}
               error={formErrors.location}
+              hideRadiusSelector={true}  // 🔧 NOUVEAU : Cacher le rayon pour vendeur
             />
           </View>
 
@@ -505,7 +538,7 @@ const CreateSellerScreen = ({ navigation }) => {
             loading={loading}
             fullWidth
             style={styles.submitButton}
-            icon="storefront-outline"
+            icon="business-outline"
             variant="secondary"
           />
 

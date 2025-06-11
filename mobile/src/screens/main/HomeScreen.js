@@ -144,7 +144,7 @@ const HomeScreen = ({ navigation }) => {
                 {/* Badge vendeur si applicable */}
                 {sellerProfile && (
                   <View style={[styles.roleBadge, styles.sellerBadge]}>
-                    <Ionicons name="storefront" size={12} color={colors.white} />
+                    <Ionicons name="business" size={12} color={colors.white} />
                     <Text style={styles.roleText}>Vendeur</Text>
                   </View>
                 )}
@@ -172,7 +172,7 @@ const HomeScreen = ({ navigation }) => {
                   // Utilisateur déjà vendeur
                   <View style={styles.sellerCard}>
                     <View style={styles.sellerCardHeader}>
-                      <Ionicons name="storefront" size={24} color={colors.success} />
+                      <Ionicons name="business" size={24} color={colors.success} />
                       <Text style={styles.sellerCardTitle}>Profil vendeur actif</Text>
                     </View>
                     <Text style={styles.sellerCardDescription}>
@@ -202,8 +202,8 @@ const HomeScreen = ({ navigation }) => {
                   // Utilisateur pas encore vendeur
                   <View style={styles.becomeSellerCard}>
                     <View style={styles.becomeSellerHeader}>
-                      <Ionicons name="storefront-outline" size={48} color={colors.primary} />
-                      <Text style={styles.becomeSellerTitle}>Devenez vendeur</Text>
+                    <Ionicons name="business-outline" size={48} color={colors.primary} />
+                    <Text style={styles.becomeSellerTitle}>Devenez vendeur</Text>
                     </View>
                     
                     <Text style={styles.becomeSellerDescription}>
