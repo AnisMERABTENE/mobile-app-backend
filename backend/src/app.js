@@ -44,7 +44,15 @@ app.get('/api/test', (req, res) => {
   res.json({ 
     message: '🚀 API Backend Mobile App fonctionne !',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    features: {
+      auth: true,
+      requests: true,
+      sellers: true,
+      photos: true,
+      websockets: true,
+      notifications: true
+    }
   });
 });
 
@@ -52,7 +60,9 @@ app.get('/api/test', (req, res) => {
 app.get('/', (req, res) => {
   res.json({ 
     message: '📱 API Mobile App Backend',
-    status: 'running'
+    status: 'running',
+    websockets: 'enabled',
+    notifications: 'real-time'
   });
 });
 
@@ -131,6 +141,17 @@ try {
   console.error('❌ Stack:', error.stack);
 }
 
+// Routes WebSocket avec gestion d'erreur
+console.log('🔄 Chargement des routes WebSocket...');
+try {
+  const socketRoutes = require('./routes/socket');
+  app.use('/api/socket', socketRoutes);
+  console.log('✅ Routes WebSocket chargées avec succès');
+} catch (error) {
+  console.error('❌ Erreur chargement routes WebSocket:', error.message);
+  console.error('❌ Stack:', error.stack);
+}
+
 // Route de test email (développement seulement)
 if (process.env.NODE_ENV === 'development') {
   app.get('/api/test-email', async (req, res) => {
@@ -170,7 +191,16 @@ if (process.env.NODE_ENV === 'development') {
 app.use((req, res) => {
   res.status(404).json({
     error: 'Route non trouvée',
-    path: req.originalUrl
+    path: req.originalUrl,
+    availableRoutes: [
+      '/api/test',
+      '/api/auth/*',
+      '/api/requests/*',
+      '/api/sellers/*',
+      '/api/photos/*',
+      '/api/geolocation/*',
+      '/api/socket/*'
+    ]
   });
 });
 
@@ -182,6 +212,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-console.log('✅ Application configurée');
+console.log('✅ Application configurée avec WebSockets et notifications temps réel');
 
 module.exports = app;

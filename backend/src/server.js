@@ -1,5 +1,7 @@
 const app = require('./app');
 const connectDB = require('./config/database');
+const { initializeSocket } = require('./config/socket');
+const http = require('http');
 
 // ===================
 // CONFIGURATION
@@ -8,7 +10,7 @@ const connectDB = require('./config/database');
 const PORT = process.env.PORT || 3000;
 
 // ===================
-// DÉMARRAGE DU SERVEUR
+// DÉMARRAGE DU SERVEUR AVEC SOCKET.IO
 // ===================
 
 const startServer = async () => {
@@ -17,15 +19,32 @@ const startServer = async () => {
     console.log('🔗 Connexion à MongoDB...');
     await connectDB();
     
-    // 2. Démarrage du serveur
-    const server = app.listen(PORT, () => {
+    // 2. Créer le serveur HTTP (nécessaire pour Socket.IO)
+    const server = http.createServer(app);
+    
+    // 3. Initialiser Socket.IO
+    console.log('🔌 Initialisation des WebSockets...');
+    initializeSocket(server);
+    
+    // 4. Démarrer le serveur
+    server.listen(PORT, () => {
       console.log(`🚀 Serveur démarré sur le port ${PORT}`);
       console.log(`📱 API disponible sur: http://localhost:${PORT}/api`);
       console.log(`🧪 Route de test: http://localhost:${PORT}/api/test`);
+      console.log(`🔌 WebSockets disponibles sur: ws://localhost:${PORT}`);
       console.log(`🌍 Environnement: ${process.env.NODE_ENV || 'development'}`);
+      
+      // Affichage des nouvelles routes WebSocket
+      console.log('\n🔌 Routes WebSocket disponibles:');
+      console.log('  - GET /api/socket/ping');
+      console.log('  - GET /api/socket/stats (authentifié)');
+      console.log('  - POST /api/socket/test-notification (authentifié)');
+      console.log('  - GET /api/socket/notification-stats (authentifié)');
+      console.log('  - POST /api/socket/simulate-request (authentifié, dev)');
+      console.log('\n📢 Notifications temps réel activées pour les vendeurs !');
     });
 
-    // 3. Gestion de l'arrêt propre du serveur
+    // 5. Gestion de l'arrêt propre du serveur
     const gracefulShutdown = (signal) => {
       console.log(`\n📴 Signal ${signal} reçu, arrêt du serveur...`);
       
@@ -35,7 +54,7 @@ const startServer = async () => {
           process.exit(1);
         }
         
-        console.log('✅ Serveur arrêté proprement');
+        console.log('✅ Serveur et WebSockets arrêtés proprement');
         process.exit(0);
       });
     };

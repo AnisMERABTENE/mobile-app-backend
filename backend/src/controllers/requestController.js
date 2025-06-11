@@ -1,8 +1,9 @@
 const Request = require('../models/Request');
 const { validateCategoryAndSubCategory, getCategoryDisplayName } = require('../config/categories');
+const NotificationService = require('../services/notificationService');
 
 /**
- * Créer une nouvelle demande
+ * Créer une nouvelle demande - VERSION AVEC NOTIFICATIONS TEMPS RÉEL
  */
 const createRequest = async (req, res) => {
   try {
@@ -17,6 +18,11 @@ const createRequest = async (req, res) => {
       priority,
       tags
     } = req.body;
+
+    console.log('📝 Création demande avec notifications temps réel...');
+    console.log('👤 Utilisateur:', req.user.email);
+    console.log('🏷️ Catégorie:', category, '>', subCategory);
+    console.log('📍 Localisation:', location.city);
 
     // 1. Valider la catégorie et sous-catégorie
     if (!validateCategoryAndSubCategory(category, subCategory)) {
@@ -64,15 +70,39 @@ const createRequest = async (req, res) => {
     // 5. Sauvegarder en base
     const savedRequest = await newRequest.save();
 
-    // 6. Peupler les informations utilisateur pour la réponse
+    // 6. Peupler les informations utilisateur pour les notifications
     await savedRequest.populate('user', 'firstName lastName email avatar');
 
-    console.log('✅ Nouvelle demande créée:', savedRequest.title, 'par', req.user.email);
+    console.log('✅ Demande sauvegardée:', savedRequest.title);
 
+    // 7. NOUVEAU : Envoyer les notifications en temps réel aux vendeurs
+    console.log('📢 Démarrage notifications temps réel...');
+    
+    // Envoyer les notifications en arrière-plan (non bloquant)
+    NotificationService.notifyNewRequest(savedRequest)
+      .then(result => {
+        console.log('📨 Résultat notifications:', result);
+        if (result.success) {
+          console.log(`✅ ${result.notifiedSellers} vendeurs notifiés pour la demande: ${savedRequest.title}`);
+        } else {
+          console.error('❌ Erreur notifications:', result.error);
+        }
+      })
+      .catch(error => {
+        console.error('❌ Erreur critique notifications:', error);
+      });
+
+    // 8. Répondre immédiatement (sans attendre les notifications)
     res.status(201).json({
       message: 'Demande créée avec succès',
-      request: savedRequest
+      request: savedRequest,
+      notifications: {
+        status: 'processing',
+        message: 'Recherche de vendeurs en cours...'
+      }
     });
+
+    console.log('✅ Réponse envoyée au client pour:', savedRequest.title);
 
   } catch (error) {
     console.error('❌ Erreur création demande:', error);
