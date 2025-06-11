@@ -61,14 +61,14 @@ const sellerSchema = new mongoose.Schema({
     }
   },
 
-  // Zone de service (rayon en kilomètres)
-  serviceRadius: {
-    type: Number,
-    required: [true, 'Le rayon de service est requis'],
-    min: [1, 'Le rayon minimum est de 1 km'],
-    max: [100, 'Le rayon maximum est de 100 km'],
-    default: 10
-  },
+//   // Zone de service (rayon en kilomètres)
+//   serviceRadius: {
+//     type: Number,
+//     required: false, // ← CORRECTION
+//     min: [1, 'Le rayon minimum est de 1 km'],
+//     max: [100, 'Le rayon maximum est de 100 km'],
+//     default: 25
+//   },
 
   // Catégories et sous-catégories de spécialité
   specialties: [{

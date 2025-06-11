@@ -67,11 +67,6 @@ const validateSellerProfile = [
     .matches(/^[0-9]{5}$/)
     .withMessage('Le code postal doit contenir exactement 5 chiffres'),
 
-  // Rayon de service
-  body('serviceRadius')
-    .isInt({ min: 1, max: 100 })
-    .withMessage('Le rayon de service doit être entre 1 et 100 km'),
-
   // Spécialités
   body('specialties')
     .isArray({ min: 1 })
@@ -170,12 +165,6 @@ const validateSellerUpdate = [
     .trim()
     .matches(/^[0-9]{5}$/)
     .withMessage('Le code postal doit contenir exactement 5 chiffres'),
-
-  // Rayon de service (optionnel)
-  body('serviceRadius')
-    .optional()
-    .isInt({ min: 1, max: 100 })
-    .withMessage('Le rayon de service doit être entre 1 et 100 km'),
 
   // Spécialités (optionnel mais si présent, doit être valide)
   body('specialties')

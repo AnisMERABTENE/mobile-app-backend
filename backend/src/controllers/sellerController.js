@@ -12,7 +12,6 @@ const createSellerProfile = async (req, res) => {
       description,
       phone,
       location,
-      serviceRadius,
       specialties
     } = req.body;
 
@@ -31,12 +30,6 @@ const createSellerProfile = async (req, res) => {
       });
     }
 
-    // 3. Valider le rayon de service
-    if (!serviceRadius || serviceRadius < 1 || serviceRadius > 100) {
-      return res.status(400).json({
-        error: 'Le rayon de service doit être entre 1 et 100 km'
-      });
-    }
 
     // 4. Valider les spécialités
     if (!specialties || specialties.length === 0) {
@@ -77,7 +70,6 @@ const createSellerProfile = async (req, res) => {
         postalCode: location.postalCode,
         country: location.country || 'France'
       },
-      serviceRadius,
       specialties,
       status: 'pending' // En attente de validation
     });
