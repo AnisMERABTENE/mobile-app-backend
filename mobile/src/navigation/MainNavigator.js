@@ -5,7 +5,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import NewHomeScreen from '../screens/main/NewHomeScreen';
 import MyRequestsScreen from '../screens/main/MyRequestsScreen';
 import HomeScreen from '../screens/main/HomeScreen'; // Profil
-import CreateSellerScreen from '../screens/main/CreateSellerScreen'; // Nouveau
+import CreateSellerScreen from '../screens/main/CreateSellerScreen';
+import RequestDetailScreen from '../screens/main/RequestDetailScreen'; // ✅ AJOUTÉ
 
 // Components
 import TabNavigator from '../components/TabNavigator';
@@ -15,43 +16,68 @@ const Stack = createNativeStackNavigator();
 const MainNavigator = () => {
   const [currentTab, setCurrentTab] = useState('newRequest');
 
-  const renderCurrentScreen = () => {
+  // ✅ CORRECTION : Fonction simple pour passer la navigation
+  const createScreenWithNavigation = (ScreenComponent) => {
+    return ({ navigation }) => (
+      <ScreenComponent navigation={navigation} />
+    );
+  };
+
+  const renderCurrentScreen = ({ navigation }) => {
     switch (currentTab) {
       case 'newRequest':
-        return <NewHomeScreen />;
+        return <NewHomeScreen navigation={navigation} />;
       case 'myRequests':
-        return <MyRequestsScreen />;
+        return <MyRequestsScreen navigation={navigation} />;
       case 'profile':
-        return <HomeScreen navigation={{ navigate: navigateToCreateSeller }} />;
+        return <HomeScreen navigation={{ 
+          navigate: (screenName) => {
+            if (screenName === 'CreateSellerProfile') {
+              navigation.navigate('CreateSellerProfile');
+            }
+          }
+        }} />;
       default:
-        return <NewHomeScreen />;
+        return <NewHomeScreen navigation={navigation} />;
     }
   };
 
-  // Fonction pour naviguer vers CreateSeller depuis les onglets
-  const navigateToCreateSeller = (screenName) => {
-    if (screenName === 'CreateSellerProfile') {
-      // On va utiliser une approche différente car on est dans les onglets
-      setCurrentTab('createSeller');
-    }
-  };
-
-  // Rendu spécial pour l'écran CreateSeller
-  if (currentTab === 'createSeller') {
-    return (
-      <CreateSellerScreen 
-        navigation={{ 
-          goBack: () => setCurrentTab('profile'),
-          navigate: navigateToCreateSeller 
-        }} 
-      />
-    );
-  }
+  // ✅ CORRECTION : Structure simplifiée qui fonctionne
+  const TabScreen = ({ navigation }) => (
+    <TabNavigator currentTab={currentTab} onTabChange={setCurrentTab}>
+      {renderCurrentScreen({ navigation })}
+    </TabNavigator>
+  );
 
   return (
-    <TabNavigator currentTab={currentTab} onTabChange={setCurrentTab}>
-      {renderCurrentScreen()}
-    </TabNavigator>
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      {/* Écran principal avec onglets */}
+      <Stack.Screen 
+        name="MainTabs" 
+        component={TabScreen}
+      />
+      
+      {/* Écran de détail des demandes */}
+      <Stack.Screen 
+        name="RequestDetail" 
+        component={RequestDetailScreen}
+        options={{
+          headerShown: false,
+          animation: 'slide_from_right',
+        }}
+      />
+      
+      {/* Écran de création de vendeur */}
+      <Stack.Screen 
+        name="CreateSellerProfile" 
+        component={CreateSellerScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+        }}
+      />
+    </Stack.Navigator>
   );
 };
 
