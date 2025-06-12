@@ -15,7 +15,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import Loading from '../../components/Loading';
 import RequestService from '../../services/requestService';
-import SellerService from '../../services/sellerService';
 import colors, { getGradientString } from '../../styles/colors';
 
 const MyRequestsScreen = ({ navigation }) => {
@@ -26,126 +25,57 @@ const MyRequestsScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState(null);
   const [selectedFilter, setSelectedFilter] = useState('all');
-  
-  // ✅ NOUVEAU : Gestion du mode vendeur/client
-  const [hasSellerProfile, setHasSellerProfile] = useState(false);
-  const [sellerProfile, setSellerProfile] = useState(null);
-  const [currentMode, setCurrentMode] = useState('client'); // 'client' ou 'seller'
-  const [switchLoading, setSwitchLoading] = useState(false);
 
   useEffect(() => {
-    checkSellerProfileAndLoadData();
+    loadData();
   }, []);
 
-  // ✅ NOUVEAU : Fonction pour vérifier le profil vendeur et charger les données
-  const checkSellerProfileAndLoadData = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
       
-      // Vérifier si l'utilisateur a un profil vendeur
-      const sellerResult = await SellerService.getMyProfile();
-      
-      if (sellerResult.success) {
-        setHasSellerProfile(true);
-        setSellerProfile(sellerResult.data);
-        console.log('✅ Profil vendeur détecté:', sellerResult.data.businessName);
+      const [requestsResult, statsResult] = await Promise.all([
+        RequestService.getMyRequests(),
+        RequestService.getMyStats(),
+      ]);
+
+      if (requestsResult.success) {
+        setRequests(requestsResult.data.requests);
+        console.log('✅ Demandes chargées:', requestsResult.data.requests.length);
         
-        // Si l'utilisateur est vendeur, démarrer en mode vendeur par défaut
-        setCurrentMode('seller');
+        // ✅ DEBUG PHOTOS - Vérifier le format des photos
+        requestsResult.data.requests.forEach((request, index) => {
+          if (request.photos && request.photos.length > 0) {
+            console.log(`🔍 DEBUG - Demande ${index + 1} "${request.title}":`, {
+              photosCount: request.photos.length,
+              firstPhoto: request.photos[0],
+              photoType: typeof request.photos[0],
+              photoKeys: typeof request.photos[0] === 'object' ? Object.keys(request.photos[0]) : 'N/A'
+            });
+          }
+        });
+        
       } else {
-        setHasSellerProfile(false);
-        setSellerProfile(null);
-        setCurrentMode('client');
-        console.log('✅ Utilisateur client uniquement');
+        console.error('❌ Erreur chargement demandes:', requestsResult.error);
+        Alert.alert('Erreur', 'Impossible de charger vos demandes');
       }
-      
-      // Charger les données selon le mode
-      await loadDataForMode(hasSellerProfile ? 'seller' : 'client');
-      
+
+      if (statsResult.success) {
+        setStats(statsResult.data);
+        console.log('✅ Stats chargées');
+      }
+
     } catch (error) {
-      console.error('❌ Erreur vérification profil:', error);
-      setHasSellerProfile(false);
-      setCurrentMode('client');
-      await loadDataForMode('client');
+      console.error('❌ Erreur loadData:', error);
+      Alert.alert('Erreur', 'Erreur lors du chargement');
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ NOUVEAU : Fonction pour changer de mode
-  const switchMode = async (newMode) => {
-    if (newMode === currentMode) return;
-    
-    try {
-      setSwitchLoading(true);
-      setCurrentMode(newMode);
-      await loadDataForMode(newMode);
-    } catch (error) {
-      console.error('❌ Erreur changement mode:', error);
-    } finally {
-      setSwitchLoading(false);
-    }
-  };
-
-  // ✅ MODIFIÉ : Charger les données selon le mode
-  const loadDataForMode = async (mode) => {
-    try {
-      if (mode === 'seller') {
-        console.log('📋 Mode vendeur : Chargement des demandes reçues...');
-        
-        // TODO: Créer une API pour récupérer les demandes reçues par le vendeur
-        // Pour l'instant, on simule
-        setRequests([]);
-        setStats({
-          total: 0,
-          active: 0,
-          totalViews: 0,
-          totalResponses: 0
-        });
-        
-      } else {
-        console.log('📋 Mode client : Chargement des demandes créées...');
-        
-        const [requestsResult, statsResult] = await Promise.all([
-          RequestService.getMyRequests(),
-          RequestService.getMyStats(),
-        ]);
-
-        if (requestsResult.success) {
-          setRequests(requestsResult.data.requests);
-          console.log('✅ Demandes client chargées:', requestsResult.data.requests.length);
-        } else {
-          console.error('❌ Erreur chargement demandes client:', requestsResult.error);
-          setRequests([]);
-        }
-
-        if (statsResult.success) {
-          setStats(statsResult.data);
-          console.log('✅ Stats client chargées');
-        } else {
-          setStats({
-            total: 0,
-            active: 0,
-            totalViews: 0,
-            totalResponses: 0
-          });
-        }
-      }
-    } catch (error) {
-      console.error('❌ Erreur chargement données mode:', error);
-      setRequests([]);
-      setStats({
-        total: 0,
-        active: 0,
-        totalViews: 0,
-        totalResponses: 0
-      });
-    }
-  };
-
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadDataForMode(currentMode);
+    await loadData();
     setRefreshing(false);
   };
 
@@ -156,6 +86,34 @@ const MyRequestsScreen = ({ navigation }) => {
       requestId: request._id,
       request: request
     });
+  };
+
+  // ✅ FONCTION UTILITAIRE POUR EXTRAIRE L'URL D'UNE PHOTO
+  const getPhotoUri = (photo) => {
+    if (!photo) return null;
+    
+    // Si c'est une string directe (URL)
+    if (typeof photo === 'string') {
+      return photo;
+    }
+    
+    // Si c'est un objet avec url
+    if (photo.url) {
+      return photo.url;
+    }
+    
+    // Si c'est un objet avec uri (format upload)
+    if (photo.uri) {
+      return photo.uri;
+    }
+    
+    // Si c'est un objet avec photoUrl (format service)
+    if (photo.photoUrl) {
+      return photo.photoUrl;
+    }
+    
+    console.warn('⚠️ Format de photo non reconnu:', photo);
+    return null;
   };
 
   const getStatusColor = (status) => {
@@ -209,7 +167,7 @@ const MyRequestsScreen = ({ navigation }) => {
   ];
 
   if (loading) {
-    return <Loading fullScreen text="Chargement..." />;
+    return <Loading fullScreen text="Chargement de vos demandes..." />;
   }
 
   return (
@@ -219,77 +177,10 @@ const MyRequestsScreen = ({ navigation }) => {
         colors={getGradientString('primary')}
         style={styles.header}
       >
-        <Text style={styles.headerTitle}>
-          {currentMode === 'seller' ? 'Demandes reçues' : 'Mes demandes'}
-        </Text>
+        <Text style={styles.headerTitle}>Mes demandes</Text>
         <Text style={styles.headerSubtitle}>
-          {currentMode === 'seller' 
-            ? 'Notifications et demandes dans votre zone'
-            : 'Gérez vos demandes en cours'
-          }
+          Gérez vos demandes en cours
         </Text>
-        
-        {/* ✅ NOUVEAU : Switch vendeur/client */}
-        {hasSellerProfile && (
-          <View style={styles.modeSwitch}>
-            <TouchableOpacity
-              style={[
-                styles.modeSwitchButton,
-                currentMode === 'client' && styles.modeSwitchButtonActive
-              ]}
-              onPress={() => switchMode('client')}
-              disabled={switchLoading}
-            >
-              <Ionicons 
-                name="person" 
-                size={16} 
-                color={currentMode === 'client' ? colors.primary : colors.white} 
-              />
-              <Text style={[
-                styles.modeSwitchText,
-                currentMode === 'client' && styles.modeSwitchTextActive
-              ]}>
-                Mode Client
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[
-                styles.modeSwitchButton,
-                currentMode === 'seller' && styles.modeSwitchButtonActive
-              ]}
-              onPress={() => switchMode('seller')}
-              disabled={switchLoading}
-            >
-              <Ionicons 
-                name="business" 
-                size={16} 
-                color={currentMode === 'seller' ? colors.primary : colors.white} 
-              />
-              <Text style={[
-                styles.modeSwitchText,
-                currentMode === 'seller' && styles.modeSwitchTextActive
-              ]}>
-                Mode Vendeur
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        
-        {/* Badge d'info du mode actuel */}
-        <View style={styles.modeBadge}>
-          <Ionicons 
-            name={currentMode === 'seller' ? 'business' : 'person'} 
-            size={14} 
-            color={colors.white} 
-          />
-          <Text style={styles.modeBadgeText}>
-            {currentMode === 'seller' 
-              ? `${sellerProfile?.businessName || 'Vendeur'}`
-              : `${user?.firstName} ${user?.lastName}`
-            }
-          </Text>
-        </View>
       </LinearGradient>
 
       <ScrollView
@@ -298,23 +189,12 @@ const MyRequestsScreen = ({ navigation }) => {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
-        {/* Loading switch */}
-        {switchLoading && (
-          <View style={styles.switchLoadingContainer}>
-            <Text style={styles.switchLoadingText}>
-              Changement vers le mode {currentMode === 'seller' ? 'vendeur' : 'client'}...
-            </Text>
-          </View>
-        )}
-
         {/* Statistiques */}
         {stats && (
           <View style={styles.statsContainer}>
             <View style={styles.statCard}>
               <Text style={styles.statNumber}>{stats.total || 0}</Text>
-              <Text style={styles.statLabel}>
-                {currentMode === 'seller' ? 'Reçues' : 'Créées'}
-              </Text>
+              <Text style={styles.statLabel}>Total</Text>
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statNumber}>{stats.active || 0}</Text>
@@ -357,47 +237,14 @@ const MyRequestsScreen = ({ navigation }) => {
         <View style={styles.requestsList}>
           {getFilteredRequests().length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons 
-                name={currentMode === 'seller' ? 'notifications-outline' : 'document-outline'} 
-                size={64} 
-                color={colors.gray[400]} 
-              />
-              <Text style={styles.emptyTitle}>
-                {currentMode === 'seller' ? 'Aucune demande reçue' : 'Aucune demande créée'}
-              </Text>
+              <Ionicons name="document-outline" size={64} color={colors.gray[400]} />
+              <Text style={styles.emptyTitle}>Aucune demande</Text>
               <Text style={styles.emptySubtitle}>
-                {currentMode === 'seller' 
-                  ? 'Les demandes correspondant à vos spécialités s\'afficheront ici automatiquement'
-                  : selectedFilter === 'all' 
-                    ? 'Vous n\'avez pas encore créé de demande. Allez dans l\'onglet "Nouvelle demande" pour commencer.'
-                    : `Aucune demande ${filters.find(f => f.id === selectedFilter)?.label.toLowerCase()}`
+                {selectedFilter === 'all' 
+                  ? 'Vous n\'avez pas encore créé de demande'
+                  : `Aucune demande ${filters.find(f => f.id === selectedFilter)?.label.toLowerCase()}`
                 }
               </Text>
-              
-              {/* Boutons d'aide */}
-              {currentMode === 'seller' ? (
-                <TouchableOpacity 
-                  style={styles.helpButton}
-                  onPress={() => Alert.alert(
-                    'Comment ça marche ?',
-                    'En tant que vendeur, vous recevrez automatiquement des notifications quand des clients publient des demandes dans votre zone et vos spécialités.\n\nVous pouvez aussi passer en mode "Client" pour créer vos propres demandes.',
-                    [{ text: 'Compris' }]
-                  )}
-                >
-                  <Text style={styles.helpButtonText}>Comment ça marche ?</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity 
-                  style={styles.helpButton}
-                  onPress={() => Alert.alert(
-                    'Créer une demande',
-                    'Pour créer votre première demande, allez dans l\'onglet "Nouvelle demande" en bas de l\'écran.',
-                    [{ text: 'Compris' }]
-                  )}
-                >
-                  <Text style={styles.helpButtonText}>Comment créer une demande ?</Text>
-                </TouchableOpacity>
-              )}
             </View>
           ) : (
             getFilteredRequests().map((request) => (
@@ -442,20 +289,36 @@ const MyRequestsScreen = ({ navigation }) => {
                   {request.description}
                 </Text>
 
-                {/* Photos */}
+                {/* Photos - ✅ VERSION CORRIGÉE */}
                 {request.photos && request.photos.length > 0 && (
                   <ScrollView 
                     horizontal 
                     showsHorizontalScrollIndicator={false}
                     style={styles.photosContainer}
                   >
-                    {request.photos.slice(0, 3).map((photo, index) => (
-                      <Image
-                        key={index}
-                        source={{ uri: photo.url }}
-                        style={styles.requestPhoto}
-                      />
-                    ))}
+                    {request.photos.slice(0, 3).map((photo, index) => {
+                      const photoUri = getPhotoUri(photo);
+                      
+                      if (!photoUri) {
+                        console.warn('⚠️ Photo sans URI valide:', photo);
+                        return null;
+                      }
+
+                      return (
+                        <Image
+                          key={index}
+                          source={{ uri: photoUri }}
+                          style={styles.requestPhoto}
+                          onError={(error) => {
+                            console.error('❌ Erreur chargement photo:', error.nativeEvent.error);
+                            console.error('❌ URI problématique:', photoUri);
+                          }}
+                          onLoad={() => {
+                            console.log('✅ Photo chargée avec succès:', photoUri);
+                          }}
+                        />
+                      );
+                    })}
                     {request.photos.length > 3 && (
                       <View style={styles.morePhotosIndicator}>
                         <Text style={styles.morePhotosText}>
@@ -498,7 +361,6 @@ const MyRequestsScreen = ({ navigation }) => {
   );
 };
 
-// ✅ STYLES AVEC NOUVEAUX ÉLÉMENTS
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -519,68 +381,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.white,
     opacity: 0.9,
-    marginBottom: 16,
   },
-  
-  // ✅ NOUVEAUX STYLES POUR LE SWITCH
-  modeSwitch: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 25,
-    padding: 4,
-    marginBottom: 12,
-  },
-  modeSwitchButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-  },
-  modeSwitchButtonActive: {
-    backgroundColor: colors.white,
-  },
-  modeSwitchText: {
-    color: colors.white,
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 6,
-  },
-  modeSwitchTextActive: {
-    color: colors.primary,
-  },
-  modeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
-  },
-  modeBadgeText: {
-    color: colors.white,
-    fontSize: 12,
-    fontWeight: '500',
-    marginLeft: 6,
-  },
-  switchLoadingContainer: {
-    padding: 16,
-    backgroundColor: colors.info + '20',
-    marginHorizontal: 24,
-    marginTop: 16,
-    borderRadius: 8,
-  },
-  switchLoadingText: {
-    color: colors.info,
-    fontSize: 14,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  
-  // Styles existants...
   content: {
     flex: 1,
     marginTop: -15,
@@ -654,21 +455,6 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     fontSize: 14,
     color: colors.text.secondary,
-    textAlign: 'center',
-    lineHeight: 20,
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-  helpButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-  },
-  helpButtonText: {
-    color: colors.white,
-    fontSize: 14,
-    fontWeight: '600',
     textAlign: 'center',
   },
   requestCard: {

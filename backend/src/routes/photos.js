@@ -77,26 +77,43 @@ router.get('/ping', (req, res) => {
 
 /**
  * @route   GET /api/photos/:filename
- * @desc    Servir une photo
+ * @desc    Servir une photo - ✅ VERSION CORRIGÉE ET AMÉLIORÉE
  * @access  Public
  */
 router.get('/:filename', async (req, res) => {
   try {
     const { filename } = req.params;
     
+    console.log('📸 Demande de photo:', filename);
+    
     // Sécurité : vérifier que le nom de fichier est valide
     if (!filename || filename.includes('..') || filename.includes('/')) {
+      console.error('❌ Nom de fichier invalide:', filename);
       return res.status(400).json({
         error: 'Nom de fichier invalide'
       });
     }
 
     const filePath = path.join(__dirname, '../../uploads/photos', filename);
+    console.log('📂 Chemin de fichier:', filePath);
     
     // Vérifier que le fichier existe
     try {
       await fs.access(filePath);
+      console.log('✅ Fichier trouvé:', filename);
     } catch (error) {
+      console.error('❌ Photo non trouvée:', filename);
+      console.error('❌ Chemin testé:', filePath);
+      
+      // ✅ AJOUT : Lister les fichiers disponibles pour debug
+      try {
+        const uploadDir = path.join(__dirname, '../../uploads/photos');
+        const files = await fs.readdir(uploadDir);
+        console.log('📂 Fichiers disponibles dans uploads/photos:', files.slice(0, 10)); // Premier 10 pour éviter spam
+      } catch (dirError) {
+        console.error('❌ Impossible de lire le dossier uploads:', dirError);
+      }
+      
       return res.status(404).json({
         error: 'Photo non trouvée'
       });
@@ -114,17 +131,98 @@ router.get('/:filename', async (req, res) => {
       case '.png':
         contentType = 'image/png';
         break;
+      default:
+        console.warn('⚠️ Extension inconnue:', extension);
+        contentType = 'image/jpeg'; // Fallback
     }
 
-    // Servir le fichier
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache 1 an
-    res.sendFile(filePath);
+    // ✅ CORRECTION CRITIQUE : Lire le fichier et l'envoyer
+    try {
+      const fileBuffer = await fs.readFile(filePath);
+      
+      // Headers appropriés pour une image
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache 1 an
+      res.setHeader('Content-Length', fileBuffer.length);
+      
+      console.log('✅ Photo servie avec succès:', filename, 'Taille:', fileBuffer.length, 'bytes');
+      
+      res.send(fileBuffer);
+      
+    } catch (readError) {
+      console.error('❌ Erreur lecture fichier:', readError);
+      return res.status(500).json({
+        error: 'Erreur lors de la lecture du fichier'
+      });
+    }
 
   } catch (error) {
-    console.error('❌ Erreur service photo:', error);
+    console.error('❌ Erreur générale service photo:', error);
     res.status(500).json({
       error: 'Erreur lors de la récupération de la photo'
+    });
+  }
+});
+
+// ✅ NOUVELLE ROUTE DE DEBUG
+/**
+ * @route   GET /api/photos/debug/list
+ * @desc    Lister les photos disponibles (développement)
+ * @access  Public (en dev seulement)
+ */
+router.get('/debug/list', async (req, res) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({
+        error: 'Debug non disponible en production'
+      });
+    }
+
+    const uploadDir = path.join(__dirname, '../../uploads/photos');
+    
+    try {
+      const files = await fs.readdir(uploadDir);
+      const fileStats = await Promise.all(
+        files.slice(0, 20).map(async (file) => { // Limite à 20 pour éviter surcharge
+          try {
+            const filePath = path.join(uploadDir, file);
+            const stats = await fs.stat(filePath);
+            return {
+              name: file,
+              size: stats.size,
+              created: stats.birthtime,
+              modified: stats.mtime,
+              url: `${req.protocol}://${req.get('host')}/api/photos/${file}`
+            };
+          } catch (statError) {
+            return {
+              name: file,
+              error: 'Impossible de lire les stats'
+            };
+          }
+        })
+      );
+
+      res.json({
+        success: true,
+        uploadDir,
+        totalFiles: files.length,
+        files: fileStats
+      });
+
+    } catch (dirError) {
+      res.json({
+        success: false,
+        error: 'Dossier uploads introuvable',
+        uploadDir,
+        details: dirError.message
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Erreur debug list:', error);
+    res.status(500).json({
+      error: 'Erreur debug'
     });
   }
 });
@@ -171,6 +269,7 @@ router.post('/upload', authenticateToken, (req, res) => {
       const photoUrl = `${req.protocol}://${req.get('host')}/api/photos/${req.file.filename}`;
       
       console.log('✅ Photo uploadée:', req.file.filename, 'par', req.user.email);
+      console.log('🔗 URL générée:', photoUrl);
 
       res.status(201).json({
         message: 'Photo uploadée avec succès',
