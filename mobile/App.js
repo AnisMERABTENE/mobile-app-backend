@@ -8,6 +8,7 @@ import { Alert, Platform } from 'react-native';
 
 // Context
 import { AuthProvider } from './src/context/AuthContext';
+import { NotificationProvider } from './src/context/NotificationContext'; // ✅ NOUVEAU
 
 // Navigation
 import AuthNavigator from './src/navigation/AuthNavigator';
@@ -174,7 +175,7 @@ const AppNavigator = () => {
       <StatusBar style="auto" />
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isAuthenticated ? (
-          // Utilisateur connecté - Navigation principale
+          // Utilisateur connecté - Navigation principale avec notifications
           <Stack.Screen 
             name="Main" 
             component={MainNavigator}
@@ -193,16 +194,19 @@ const AppNavigator = () => {
   );
 };
 
-// Composant racine de l'application
+// Composant racine de l'application - ✅ MODIFIÉ AVEC NOTIFICATIONPROVIDER
 export default function App() {
   console.log('📱 Démarrage de l\'application React Native...');
   console.log('🔗 Deep link schemes configurés: myapp://, mobileapp://');
   console.log('🤖 Plateforme détectée:', Platform.OS);
   console.log('⏰ Timestamp démarrage:', new Date().toISOString());
+  console.log('🔔 Notifications temps réel activées');
 
   return (
     <AuthProvider>
-      <AppNavigator />
+      <NotificationProvider>
+        <AppNavigator />
+      </NotificationProvider>
     </AuthProvider>
   );
 }

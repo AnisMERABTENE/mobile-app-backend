@@ -145,7 +145,7 @@ const HomeScreen = ({ navigation }) => {
                 {sellerProfile && (
                   <View style={[styles.roleBadge, styles.sellerBadge]}>
                     <Ionicons name="business" size={12} color={colors.white} />
-                    <Text style={styles.roleText}>Vendeur</Text>
+                  <Text style={styles.roleText}>Vendeur</Text>
                   </View>
                 )}
               </View>

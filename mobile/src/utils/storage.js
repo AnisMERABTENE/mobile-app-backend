@@ -268,6 +268,42 @@ class StorageService {
       return false;
     }
   }
+
+  // ==================
+  // MÉTHODES GÉNÉRIQUES POUR NOTIFICATIONS
+  // ==================
+  
+  /**
+   * Méthodes génériques pour les notifications
+   */
+  async setItem(key, value) {
+    try {
+      await AsyncStorage.setItem(key, value);
+      return true;
+    } catch (error) {
+      console.error(`❌ Erreur setItem ${key}:`, error);
+      return false;
+    }
+  }
+
+  async getItem(key) {
+    try {
+      return await AsyncStorage.getItem(key);
+    } catch (error) {
+      console.error(`❌ Erreur getItem ${key}:`, error);
+      return null;
+    }
+  }
+
+  async removeItem(key) {
+    try {
+      await AsyncStorage.removeItem(key);
+      return true;
+    } catch (error) {
+      console.error(`❌ Erreur removeItem ${key}:`, error);
+      return false;
+    }
+  }
 }
 
 // Exporter une instance unique du service
