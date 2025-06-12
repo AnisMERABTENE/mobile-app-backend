@@ -17,7 +17,7 @@ import Loading from '../../components/Loading';
 import RequestService from '../../services/requestService';
 import colors, { getGradientString } from '../../styles/colors';
 
-const MyRequestsScreen = () => {
+const MyRequestsScreen = ({ navigation }) => {
   const { user } = useAuth();
   
   const [requests, setRequests] = useState([]);
@@ -34,7 +34,6 @@ const MyRequestsScreen = () => {
     try {
       setLoading(true);
       
-      // Charger les demandes et les stats en parallèle
       const [requestsResult, statsResult] = await Promise.all([
         RequestService.getMyRequests(),
         RequestService.getMyStats(),
@@ -65,6 +64,15 @@ const MyRequestsScreen = () => {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
+  };
+
+  const handleRequestPress = (request) => {
+    console.log('👁️ Ouverture détails demande:', request.title);
+    
+    navigation.navigate('RequestDetail', {
+      requestId: request._id,
+      request: request
+    });
   };
 
   const getStatusColor = (status) => {
@@ -199,7 +207,12 @@ const MyRequestsScreen = () => {
             </View>
           ) : (
             getFilteredRequests().map((request) => (
-              <View key={request._id} style={styles.requestCard}>
+              <TouchableOpacity
+                key={request._id}
+                style={styles.requestCard}
+                onPress={() => handleRequestPress(request)}
+                activeOpacity={0.7}
+              >
                 {/* Header de la carte */}
                 <View style={styles.requestHeader}>
                   <View style={styles.requestTitleContainer}>
@@ -224,6 +237,10 @@ const MyRequestsScreen = () => {
                       </View>
                     </View>
                   </View>
+                  
+                  <View style={styles.navigationIndicator}>
+                    <Ionicons name="chevron-forward" size={20} color={colors.gray[400]} />
+                  </View>
                 </View>
 
                 {/* Description */}
@@ -238,13 +255,20 @@ const MyRequestsScreen = () => {
                     showsHorizontalScrollIndicator={false}
                     style={styles.photosContainer}
                   >
-                    {request.photos.map((photo, index) => (
+                    {request.photos.slice(0, 3).map((photo, index) => (
                       <Image
                         key={index}
                         source={{ uri: photo.url }}
                         style={styles.requestPhoto}
                       />
                     ))}
+                    {request.photos.length > 3 && (
+                      <View style={styles.morePhotosIndicator}>
+                        <Text style={styles.morePhotosText}>
+                          +{request.photos.length - 3}
+                        </Text>
+                      </View>
+                    )}
                   </ScrollView>
                 )}
 
@@ -259,13 +283,19 @@ const MyRequestsScreen = () => {
                       <Ionicons name="location-outline" size={16} color={colors.gray[500]} />
                       <Text style={styles.statText}>{request.radius} km</Text>
                     </View>
+                    {request.responseCount > 0 && (
+                      <View style={styles.statItem}>
+                        <Ionicons name="chatbubble-outline" size={16} color={colors.success} />
+                        <Text style={[styles.statText, { color: colors.success }]}>
+                          {request.responseCount} réponse{request.responseCount > 1 ? 's' : ''}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                   
-                  <TouchableOpacity style={styles.actionButton}>
-                    <Ionicons name="ellipsis-horizontal" size={20} color={colors.primary} />
-                  </TouchableOpacity>
+                  <Text style={styles.viewDetailsText}>Voir détails</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))
           )}
         </View>
@@ -380,8 +410,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+    borderWidth: 1,
+    borderColor: colors.gray[100],
   },
   requestHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     marginBottom: 12,
   },
   requestTitleContainer: {
@@ -417,6 +451,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  navigationIndicator: {
+    marginLeft: 12,
+    alignSelf: 'center',
+  },
   requestDescription: {
     fontSize: 14,
     color: colors.text.secondary,
@@ -433,6 +471,19 @@ const styles = StyleSheet.create({
     marginRight: 12,
     backgroundColor: colors.gray[200],
   },
+  morePhotosIndicator: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    backgroundColor: colors.gray[300],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  morePhotosText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.gray[600],
+  },
   requestFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -440,6 +491,7 @@ const styles = StyleSheet.create({
   },
   requestStats: {
     flexDirection: 'row',
+    flex: 1,
   },
   statItem: {
     flexDirection: 'row',
@@ -451,8 +503,10 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginLeft: 4,
   },
-  actionButton: {
-    padding: 8,
+  viewDetailsText: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '600',
   },
 });
 

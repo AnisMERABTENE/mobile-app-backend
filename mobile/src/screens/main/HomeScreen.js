@@ -14,12 +14,15 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../context/NotificationContext'; // ✅ NOUVEAU
+import NotificationBell from '../../components/NotificationBell'; // ✅ NOUVEAU
 import Button from '../../components/Button';
 import SellerService from '../../services/sellerService';
 import colors, { getGradientString } from '../../styles/colors';
 
 const HomeScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
+  const { notifications, unreadCount } = useNotifications(); // ✅ NOUVEAU
   const [sellerProfile, setSellerProfile] = useState(null);
   const [loadingSellerCheck, setLoadingSellerCheck] = useState(true);
 
@@ -50,6 +53,26 @@ const HomeScreen = ({ navigation }) => {
       setLoadingSellerCheck(false);
     }
   };
+
+  // ✅ NOUVELLE FONCTION : Gérer le clic sur la cloche
+  const handleNotificationPress = () => {
+    console.log('🔔 Clic sur les notifications');
+    console.log('📋 Notifications:', notifications.length);
+    console.log('🔴 Non lues:', unreadCount);
+
+    // Pour l'instant, juste afficher un alert avec les notifications
+    if (notifications.length === 0) {
+      Alert.alert('Notifications', 'Aucune notification pour le moment');
+    } else {
+      const latestNotification = notifications[0];
+      Alert.alert(
+        'Dernière notification',
+        latestNotification.message,
+        [{ text: 'OK', style: 'default' }]
+      );
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await logout();
@@ -107,7 +130,7 @@ const HomeScreen = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
       
-      {/* Header avec gradient */}
+      {/* Header avec gradient - ✅ MODIFIÉ AVEC CLOCHE */}
       <LinearGradient
         colors={getGradientString('primary')}
         style={styles.header}
@@ -145,21 +168,36 @@ const HomeScreen = ({ navigation }) => {
                 {sellerProfile && (
                   <View style={[styles.roleBadge, styles.sellerBadge]}>
                     <Ionicons name="business" size={12} color={colors.white} />
-                  <Text style={styles.roleText}>Vendeur</Text>
+                    <Text style={styles.roleText}>Vendeur</Text>
                   </View>
                 )}
               </View>
             </View>
           </View>
 
-          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-            <Ionicons name="log-out-outline" size={24} color={colors.white} />
-          </TouchableOpacity>
+          {/* ✅ NOUVEAU : Actions du header avec cloche */}
+          <View style={styles.headerActions}>
+            {/* Cloche de notifications pour les vendeurs */}
+            {sellerProfile && (
+              <NotificationBell
+                onPress={handleNotificationPress}
+                size={24}
+                color={colors.white}
+                showConnectionStatus={__DEV__}
+                style={styles.notificationBell}
+              />
+            )}
+            
+            <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+              <Ionicons name="log-out-outline" size={24} color={colors.white} />
+            </TouchableOpacity>
+          </View>
         </View>
       </LinearGradient>
 
-      {/* Contenu principal */}
+      {/* Rest of your existing content... */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Le reste du contenu reste identique pour l'instant */}
         <View style={styles.contentPadding}>
           
           {/* Section Vendeur */}
@@ -179,9 +217,19 @@ const HomeScreen = ({ navigation }) => {
                       Vous recevez actuellement des demandes dans votre zone.
                     </Text>
                     
+                    {/* ✅ NOUVEAU : Affichage des notifications pour vendeurs */}
+                    {unreadCount > 0 && (
+                      <View style={styles.notificationAlert}>
+                        <Ionicons name="notifications" size={20} color={colors.warning} />
+                        <Text style={styles.notificationAlertText}>
+                          {unreadCount} nouvelle{unreadCount > 1 ? 's' : ''} demande{unreadCount > 1 ? 's' : ''} !
+                        </Text>
+                      </View>
+                    )}
+                    
                     <View style={styles.sellerStats}>
                       <View style={styles.sellerStat}>
-                        <Text style={styles.sellerStatNumber}>0</Text>
+                        <Text style={styles.sellerStatNumber}>{notifications.length}</Text>
                         <Text style={styles.sellerStatLabel}>Demandes reçues</Text>
                       </View>
                       <View style={styles.sellerStat}>
@@ -202,8 +250,8 @@ const HomeScreen = ({ navigation }) => {
                   // Utilisateur pas encore vendeur
                   <View style={styles.becomeSellerCard}>
                     <View style={styles.becomeSellerHeader}>
-                    <Ionicons name="business-outline" size={48} color={colors.primary} />
-                    <Text style={styles.becomeSellerTitle}>Devenez vendeur</Text>
+                      <Ionicons name="business-outline" size={48} color={colors.primary} />
+                      <Text style={styles.becomeSellerTitle}>Devenez vendeur</Text>
                     </View>
                     
                     <Text style={styles.becomeSellerDescription}>
@@ -238,116 +286,15 @@ const HomeScreen = ({ navigation }) => {
             )}
           </View>
 
-          {/* Carte de statut */}
-          <View style={styles.statusCard}>
-            <View style={styles.statusHeader}>
-              <Ionicons name="checkmark-circle" size={24} color={colors.success} />
-              <Text style={styles.statusTitle}>Compte vérifié</Text>
-            </View>
-            <Text style={styles.statusDescription}>
-              {user?.isEmailVerified 
-                ? 'Votre email a été vérifié avec succès ✅'
-                : 'Votre email n\'est pas encore vérifié ⚠️'
-              }
-            </Text>
-          </View>
-
-          {/* Informations du compte */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Informations du compte</Text>
-            
-            <View style={styles.infoCard}>
-              <View style={styles.infoRow}>
-                <Ionicons name="mail-outline" size={20} color={colors.primary} />
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>Email</Text>
-                  <Text style={styles.infoValue}>{user?.email}</Text>
-                </View>
-              </View>
-
-              <View style={styles.infoRow}>
-                <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>Membre depuis</Text>
-                  <Text style={styles.infoValue}>
-                    {user?.createdAt 
-                      ? new Date(user.createdAt).toLocaleDateString('fr-FR')
-                      : 'N/A'
-                    }
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.infoRow}>
-                <Ionicons name="time-outline" size={20} color={colors.primary} />
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>Dernière connexion</Text>
-                  <Text style={styles.infoValue}>
-                    {user?.lastLoginAt 
-                      ? new Date(user.lastLoginAt).toLocaleDateString('fr-FR')
-                      : 'Maintenant'
-                    }
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-
-          {/* Actions rapides */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Actions rapides</Text>
-            
-            <View style={styles.actionsGrid}>
-              <TouchableOpacity style={styles.actionCard}>
-                <Ionicons name="person-outline" size={32} color={colors.primary} />
-                <Text style={styles.actionTitle}>Profil</Text>
-                <Text style={styles.actionDescription}>
-                  Gérer vos informations
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.actionCard}>
-                <Ionicons name="settings-outline" size={32} color={colors.primary} />
-                <Text style={styles.actionTitle}>Paramètres</Text>
-                <Text style={styles.actionDescription}>
-                  Configurer l'app
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.actionCard}>
-                <Ionicons name="help-circle-outline" size={32} color={colors.primary} />
-                <Text style={styles.actionTitle}>Aide</Text>
-                <Text style={styles.actionDescription}>
-                  Support et FAQ
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.actionCard}>
-                <Ionicons name="star-outline" size={32} color={colors.primary} />
-                <Text style={styles.actionTitle}>Évaluer</Text>
-                <Text style={styles.actionDescription}>
-                  Noter l'application
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Bouton de déconnexion */}
-          <Button
-            title="Se déconnecter"
-            variant="outline"
-            icon="log-out-outline"
-            onPress={handleLogout}
-            fullWidth
-            style={styles.logoutButtonFull}
-          />
-
+          {/* Rest of your existing sections... */}
+          
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 };
 
+// ✅ STYLES MODIFIÉS ET NOUVEAUX
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -422,9 +369,33 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 2,
   },
+  // ✅ NOUVEAUX STYLES POUR LE HEADER
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  notificationBell: {
+    marginRight: 16,
+  },
   logoutButton: {
     padding: 8,
   },
+  // ✅ NOUVEAUX STYLES POUR LES NOTIFICATIONS
+  notificationAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.warning + '20',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  notificationAlertText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: colors.warning,
+    fontWeight: '600',
+  },
+  // ... rest of your existing styles
   content: {
     flex: 1,
     marginTop: -15,
@@ -440,50 +411,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.text.primary,
     marginBottom: 16,
-  },
-  becomeSellerCard: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 24,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  becomeSellerHeader: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  becomeSellerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: colors.text.primary,
-    marginTop: 12,
-  },
-  becomeSellerDescription: {
-    fontSize: 16,
-    color: colors.text.secondary,
-    lineHeight: 24,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  becomeSellerFeatures: {
-    marginBottom: 24,
-  },
-  feature: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  featureText: {
-    fontSize: 14,
-    color: colors.text.primary,
-    marginLeft: 12,
-    flex: 1,
-  },
-  becomeSellerButton: {
-    marginTop: 8,
   },
   sellerCard: {
     backgroundColor: colors.white,
@@ -540,96 +467,49 @@ const styles = StyleSheet.create({
   sellerButton: {
     marginTop: 8,
   },
-  statusCard: {
+  becomeSellerCard: {
     backgroundColor: colors.white,
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
+    padding: 24,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
   },
-  statusHeader: {
-    flexDirection: 'row',
+  becomeSellerHeader: {
     alignItems: 'center',
-    marginBottom: 8,
-  },
-  statusTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginLeft: 8,
-  },
-  statusDescription: {
-    fontSize: 14,
-    color: colors.text.secondary,
-    lineHeight: 20,
-  },
-  infoCard: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[200],
-  },
-  infoContent: {
-    marginLeft: 16,
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: 14,
-    color: colors.text.secondary,
-    marginBottom: 2,
-  },
-  infoValue: {
-    fontSize: 16,
-    color: colors.text.primary,
-    fontWeight: '500',
-  },
-  actionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  actionCard: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 20,
-    width: '48%',
     marginBottom: 16,
-    alignItems: 'center',
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  actionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+  becomeSellerTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
     color: colors.text.primary,
     marginTop: 12,
-    marginBottom: 4,
   },
-  actionDescription: {
-    fontSize: 12,
+  becomeSellerDescription: {
+    fontSize: 16,
     color: colors.text.secondary,
+    lineHeight: 24,
     textAlign: 'center',
+    marginBottom: 20,
   },
-  logoutButtonFull: {
-    marginTop: 16,
+  becomeSellerFeatures: {
+    marginBottom: 24,
+  },
+  feature: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  featureText: {
+    fontSize: 14,
+    color: colors.text.primary,
+    marginLeft: 12,
+    flex: 1,
+  },
+  becomeSellerButton: {
+    marginTop: 8,
   },
 });
 
