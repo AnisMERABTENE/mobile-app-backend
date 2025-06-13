@@ -90,16 +90,19 @@ router.post('/upload', authenticateToken, (req, res) => {
     }
 
     try {
-      // Cloudinary retourne directement l'URL de l'image
-      const photoUrl = req.file.path; // URL Cloudinary
+      // ✅ CORRECTION CRITIQUE : Retourner l'URL Cloudinary complète
+      const photoUrl = req.file.path; // URL Cloudinary complète
       const photoId = req.file.filename; // ID Cloudinary
       
       console.log('✅ Photo uploadée sur Cloudinary:', photoId);
-      console.log('🔗 URL Cloudinary:', photoUrl);
+      console.log('🔗 URL Cloudinary complète:', photoUrl);
+
+      // ✅ CORRECTION : S'assurer que l'URL est complète
+      const fullPhotoUrl = photoUrl.startsWith('http') ? photoUrl : `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/${photoUrl}`;
 
       res.status(201).json({
         message: 'Photo uploadée avec succès sur Cloudinary',
-        photoUrl: photoUrl,
+        photoUrl: fullPhotoUrl, // ✅ URL complète Cloudinary
         photoId: photoId,
         fileInfo: {
           filename: req.file.filename,
@@ -107,7 +110,8 @@ router.post('/upload', authenticateToken, (req, res) => {
           size: req.file.bytes,
           format: req.file.format,
           width: req.file.width,
-          height: req.file.height
+          height: req.file.height,
+          cloudinaryUrl: fullPhotoUrl // ✅ URL de sécurité
         }
       });
 
@@ -154,13 +158,16 @@ router.post('/upload-multiple', authenticateToken, (req, res) => {
     }
 
     try {
-      // Traiter chaque fichier uploadé sur Cloudinary
+      // ✅ CORRECTION : Traiter chaque fichier uploadé sur Cloudinary avec URL complète
       const uploadedPhotos = req.files.map(file => {
         const photoUrl = file.path; // URL Cloudinary
         const photoId = file.filename; // ID Cloudinary
         
+        // ✅ S'assurer que l'URL est complète
+        const fullPhotoUrl = photoUrl.startsWith('http') ? photoUrl : `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/${photoUrl}`;
+        
         return {
-          photoUrl: photoUrl,
+          photoUrl: fullPhotoUrl, // ✅ URL complète
           photoId: photoId,
           fileInfo: {
             filename: file.filename,
@@ -168,12 +175,14 @@ router.post('/upload-multiple', authenticateToken, (req, res) => {
             size: file.bytes,
             format: file.format,
             width: file.width,
-            height: file.height
+            height: file.height,
+            cloudinaryUrl: fullPhotoUrl
           }
         };
       });
 
       console.log('✅', req.files.length, 'photos uploadées sur Cloudinary');
+      console.log('🔗 URLs générées:', uploadedPhotos.map(p => p.photoUrl));
 
       res.status(201).json({
         message: `${req.files.length} photos uploadées avec succès sur Cloudinary`,

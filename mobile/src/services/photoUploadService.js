@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 
 /**
- * Service pour l'upload des photos - VERSION RAILWAY
+ * Service pour l'upload des photos - VERSION RAILWAY CORRIGÉE
  */
 class PhotoUploadService {
   
@@ -48,7 +48,7 @@ class PhotoUploadService {
   }
 
   /**
-   * Upload une photo vers Railway
+   * Upload une photo vers Railway - ✅ CORRIGÉ
    */
   async uploadPhoto(photo, onProgress = null) {
     try {
@@ -88,9 +88,21 @@ class PhotoUploadService {
 
       if (result.success) {
         console.log('✅ Photo uploadée sur Railway:', result.data.photoUrl);
+        
+        // ✅ CORRECTION CRITIQUE : Vérifier que l'URL est complète
+        let finalPhotoUrl = result.data.photoUrl;
+        
+        // Si l'URL n'est pas complète, la construire
+        if (!finalPhotoUrl.startsWith('http')) {
+          console.warn('⚠️ URL photo incomplète, reconstruction...');
+          finalPhotoUrl = `https://res.cloudinary.com/Root/image/upload/${finalPhotoUrl}`;
+        }
+        
+        console.log('🔗 URL finale de la photo:', finalPhotoUrl);
+        
         return {
           success: true,
-          photoUrl: result.data.photoUrl,
+          photoUrl: finalPhotoUrl, // ✅ URL Cloudinary complète
           photoId: result.data.photoId,
         };
       } else {
@@ -139,6 +151,14 @@ class PhotoUploadService {
           if (xhr.status >= 200 && xhr.status < 300) {
             const responseData = JSON.parse(xhr.responseText);
             console.log('✅ Succès Railway:', responseData);
+            
+            // ✅ CORRECTION : Logs détaillés de la réponse
+            console.log('🔍 Analyse réponse Railway:', {
+              photoUrl: responseData.photoUrl,
+              photoId: responseData.photoId,
+              fileInfo: responseData.fileInfo
+            });
+            
             resolve({
               success: true,
               data: responseData
@@ -188,7 +208,7 @@ class PhotoUploadService {
   }
 
   /**
-   * Upload multiple vers Railway
+   * Upload multiple vers Railway - ✅ CORRIGÉ
    */
   async uploadMultiplePhotos(photos, onProgress = null) {
     try {
@@ -219,14 +239,19 @@ class PhotoUploadService {
 
       console.log('📊 Résultats Railway:', successfulUploads.length, '/', photos.length);
 
+      // ✅ CORRECTION CRITIQUE : Format des URLs dans la réponse
+      const photoUrls = successfulUploads.map(result => ({
+        url: result.photoUrl, // ✅ URL Cloudinary complète
+        alt: 'Photo de la demande'
+      }));
+
+      console.log('🔗 URLs finales retournées:', photoUrls);
+
       return {
         success: failedUploads.length === 0,
         successfulUploads,
         failedUploads,
-        photoUrls: successfulUploads.map(result => ({
-          url: result.photoUrl,
-          alt: 'Photo de la demande'
-        })),
+        photoUrls, // ✅ Format correct avec URLs complètes
       };
 
     } catch (error) {
@@ -313,6 +338,7 @@ class PhotoUploadService {
       errors,
     };
   }
+
   /**
    * Supprimer une photo sur Railway
    */
@@ -361,7 +387,8 @@ class PhotoUploadService {
       allowedTypes: ['image/jpeg', 'image/jpg', 'image/png'],
       maxPhotos: 5,
       timeout: 90000, // 90 secondes
-      platform: 'Railway'
+      platform: 'Railway',
+      cloudinaryUrl: 'https://res.cloudinary.com/Root/image/upload/'
     };
   }
 }
