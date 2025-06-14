@@ -48,49 +48,93 @@ class PhotoUploadService {
   }
 
   /**
-   * Upload une photo vers Railway - ✅ CORRIGÉ
+   * Upload une photo vers Railway - ✅ ULTRA CORRIGÉ
    */
   async uploadPhoto(photo, onProgress = null) {
     try {
       console.log('📤 Upload photo vers Railway...');
-      console.log('📤 Photo:', {
+      console.log('📤 Photo debug complète:', {
         name: photo.name,
         type: photo.type,
-        size: photo.size
+        size: photo.size,
+        uri: photo.uri?.substring(0, 50) + '...',
+        hasUri: !!photo.uri,
+        uriType: typeof photo.uri
       });
 
       // 1. Récupérer le token
       const token = await SecureStore.getItemAsync('authToken');
       if (!token) {
-        throw new Error('Token d\'authentification requis');
+        throw new Error('Token d\'authentification requis pour upload');
       }
+      console.log('🔑 Token récupéré pour upload');
 
-      // 2. Valider la photo
+      // 2. Valider la photo AVANT upload
       const validation = this.validatePhoto(photo);
       if (!validation.isValid) {
-        throw new Error(`Photo invalide: ${validation.errors.join(', ')}`);
+        const errorMsg = `Photo invalide: ${validation.errors.join(', ')}`;
+        console.error('❌ Validation échouée:', errorMsg);
+        return {
+          success: false,
+          error: errorMsg
+        };
       }
+      console.log('✅ Photo validée pour upload');
 
-      // 3. Créer le FormData
+      // 3. Test de connectivité AVANT upload
+      console.log('🧪 Test connectivité Railway...');
+      const connectivityTest = await this.testUploadEndpoint();
+      if (!connectivityTest.success) {
+        console.error('❌ Railway inaccessible:', connectivityTest.error);
+        return {
+          success: false,
+          error: `Service Railway inaccessible: ${connectivityTest.error}`
+        };
+      }
+      console.log('✅ Railway accessible, procédure d\'upload...');
+
+      // 4. Créer le FormData avec vérifications
       const formData = new FormData();
-      formData.append('photo', {
+      
+      // ✅ CORRECTION CRITIQUE : Format photo pour FormData
+      const photoForUpload = {
         uri: photo.uri,
         type: photo.type || 'image/jpeg',
         name: photo.name || `photo_${Date.now()}.jpg`,
-      });
+      };
+      
+      console.log('📤 Photo formatée pour FormData:', photoForUpload);
+      formData.append('photo', photoForUpload);
 
-      // 4. URL d'upload Railway
+      // 5. URL d'upload Railway
       const uploadUrl = `${this.baseURL}/photos/upload`;
-      console.log('📤 Upload vers Railway:', uploadUrl);
+      console.log('📤 Upload vers Railway URL:', uploadUrl);
 
-      // 5. Upload avec XMLHttpRequest
-      const result = await this.uploadWithXHR(uploadUrl, formData, token, onProgress);
+      // 6. Upload avec fetch amélioré
+      const result = await this.uploadWithFetch(uploadUrl, formData, token, onProgress);
+
+      // 7. ✅ CORRECTION CRITIQUE : Vérifier le résultat
+      if (!result) {
+        console.error('❌ Résultat upload undefined !');
+        return {
+          success: false,
+          error: 'Erreur technique: Résultat d\'upload undefined'
+        };
+      }
 
       if (result.success) {
-        console.log('✅ Photo uploadée sur Railway:', result.data.photoUrl);
+        console.log('✅ Photo uploadée sur Railway:', result.data?.photoUrl);
         
         // ✅ CORRECTION CRITIQUE : Vérifier que l'URL est complète
-        let finalPhotoUrl = result.data.photoUrl;
+        let finalPhotoUrl = result.data?.photoUrl;
+        
+        if (!finalPhotoUrl) {
+          console.error('❌ Pas d\'URL photo dans la réponse:', result.data);
+          return {
+            success: false,
+            error: 'URL de photo manquante dans la réponse du serveur'
+          };
+        }
         
         // Si l'URL n'est pas complète, la construire
         if (!finalPhotoUrl.startsWith('http')) {
@@ -102,163 +146,193 @@ class PhotoUploadService {
         
         return {
           success: true,
-          photoUrl: finalPhotoUrl, // ✅ URL Cloudinary complète
-          photoId: result.data.photoId,
+          photoUrl: finalPhotoUrl,
+          photoId: result.data?.photoId || 'unknown',
         };
       } else {
         console.error('❌ Échec upload Railway:', result.error);
         return {
           success: false,
-          error: result.error,
+          error: result.error || 'Erreur d\'upload Railway inconnue',
         };
       }
 
     } catch (error) {
-      console.error('❌ Erreur upload Railway:', error);
+      console.error('❌ Erreur critique upload Railway:', error);
+      console.error('❌ Stack trace:', error.stack);
       return {
         success: false,
-        error: 'Impossible d\'uploader vers Railway: ' + error.message,
+        error: `Erreur critique d'upload: ${error.message}`,
       };
     }
   }
 
   /**
-   * XMLHttpRequest optimisé pour Railway
+   * ✅ NOUVELLE MÉTHODE : Upload avec fetch() au lieu de XMLHttpRequest
    */
-  async uploadWithXHR(url, formData, token, onProgress) {
-    return new Promise((resolve) => {
-      const xhr = new XMLHttpRequest();
+  async uploadWithFetch(url, formData, token, onProgress) {
+    try {
+      console.log('🚀 Début upload avec fetch...');
       
-      // Configuration pour Railway
-      xhr.timeout = 90000; // 90 secondes pour Railway
-      
-      // Progression
+      // Simuler progression si callback fourni
       if (onProgress) {
-        xhr.upload.addEventListener('progress', (event) => {
-          if (event.lengthComputable) {
-            const progress = event.loaded / event.total;
-            console.log('📊 Progression Railway:', Math.round(progress * 100) + '%');
-            onProgress(progress);
-          }
-        });
+        onProgress(0.1); // 10% au début
       }
 
-      // Succès
-      xhr.onload = () => {
-        console.log('📥 Réponse Railway:', xhr.status);
+      const response = await Promise.race([
+        fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            // ✅ IMPORTANT : Ne pas définir Content-Type pour FormData
+            // fetch() le définira automatiquement avec boundary
+          },
+          body: formData,
+        }),
+        // Timeout de 60 secondes
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout 60s')), 60000)
+        )
+      ]);
+
+      console.log('📥 Réponse fetch reçue:', response.status, response.statusText);
+
+      if (onProgress) {
+        onProgress(0.8); // 80% réponse reçue
+      }
+
+      if (response.ok) {
+        const responseData = await response.json();
+        console.log('✅ Succès Railway fetch:', responseData);
         
-        try {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            const responseData = JSON.parse(xhr.responseText);
-            console.log('✅ Succès Railway:', responseData);
-            
-            // ✅ CORRECTION : Logs détaillés de la réponse
-            console.log('🔍 Analyse réponse Railway:', {
-              photoUrl: responseData.photoUrl,
-              photoId: responseData.photoId,
-              fileInfo: responseData.fileInfo
-            });
-            
-            resolve({
-              success: true,
-              data: responseData
-            });
-          } else {
-            const errorData = JSON.parse(xhr.responseText || '{}');
-            console.error('❌ Erreur Railway:', xhr.status, errorData);
-            resolve({
-              success: false,
-              error: errorData.error || `Erreur Railway ${xhr.status}`
-            });
-          }
-        } catch (parseError) {
-          console.error('❌ Erreur parsing Railway:', parseError);
-          resolve({
-            success: false,
-            error: 'Erreur réponse Railway'
-          });
+        if (onProgress) {
+          onProgress(1.0); // 100% terminé
         }
-      };
-
-      // Erreur réseau
-      xhr.onerror = () => {
-        console.error('❌ Erreur réseau Railway');
-        resolve({
+        
+        return {
+          success: true,
+          data: responseData
+        };
+      } else {
+        // Tenter de lire l'erreur JSON
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          errorData = { error: `Erreur HTTP ${response.status}` };
+        }
+        
+        console.error('❌ Erreur Railway fetch:', response.status, errorData);
+        return {
           success: false,
-          error: 'Erreur réseau Railway. Vérifiez votre connexion internet.'
-        });
-      };
+          error: errorData.error || `Erreur Railway ${response.status}: ${response.statusText}`
+        };
+      }
 
-      // Timeout
-      xhr.ontimeout = () => {
-        console.error('❌ Timeout Railway (90s)');
-        resolve({
-          success: false,
-          error: 'Timeout Railway (90s). Connexion trop lente.'
-        });
-      };
-
-      // Configuration et envoi
-      xhr.open('POST', url);
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    } catch (error) {
+      console.error('❌ Erreur fetch upload:', error);
       
-      console.log('🚀 Envoi vers Railway...');
-      xhr.send(formData);
-    });
+      if (error.message.includes('Timeout')) {
+        return {
+          success: false,
+          error: 'Timeout: L\'upload a pris trop de temps (60s). Connexion trop lente.'
+        };
+      }
+      
+      return {
+        success: false,
+        error: `Erreur réseau: ${error.message}`
+      };
+    }
   }
 
   /**
-   * Upload multiple vers Railway - ✅ CORRIGÉ
+   * Upload multiple vers Railway - ✅ ULTRA CORRIGÉ
    */
   async uploadMultiplePhotos(photos, onProgress = null) {
     try {
       console.log('📤 Upload multiple vers Railway:', photos.length, 'photos');
+
+      // ✅ VALIDATION INITIALE
+      if (!Array.isArray(photos) || photos.length === 0) {
+        console.error('❌ Pas de photos à uploader');
+        return {
+          success: false,
+          error: 'Aucune photo à uploader',
+          successfulUploads: [],
+          failedUploads: [],
+          photoUrls: [],
+        };
+      }
 
       const results = [];
       
       for (let i = 0; i < photos.length; i++) {
         console.log(`📤 Photo ${i + 1}/${photos.length} vers Railway...`);
         
-        const result = await this.uploadPhoto(photos[i], (progress) => {
-          if (onProgress) {
-            const globalProgress = (i + progress) / photos.length;
-            onProgress(globalProgress, i, photos.length);
-          }
-        });
+        try {
+          const result = await this.uploadPhoto(photos[i], (progress) => {
+            if (onProgress) {
+              const globalProgress = (i + progress) / photos.length;
+              onProgress(globalProgress, i, photos.length);
+            }
+          });
+          
+          console.log(`📊 Résultat photo ${i + 1}:`, {
+            success: result.success,
+            error: result.error,
+            hasUrl: !!result.photoUrl
+          });
+          
+          results.push(result);
+          
+        } catch (photoError) {
+          console.error(`❌ Erreur critique photo ${i + 1}:`, photoError);
+          results.push({
+            success: false,
+            error: `Erreur photo ${i + 1}: ${photoError.message}`
+          });
+        }
         
-        results.push(result);
-        
-        // Pause entre uploads Railway
+        // Pause entre uploads Railway pour éviter la surcharge
         if (i < photos.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          console.log('⏳ Pause entre uploads...');
+          await new Promise(resolve => setTimeout(resolve, 1500));
         }
       }
       
-      const successfulUploads = results.filter(r => r.success);
-      const failedUploads = results.filter(r => !r.success);
+      const successfulUploads = results.filter(r => r && r.success);
+      const failedUploads = results.filter(r => !r || !r.success);
 
-      console.log('📊 Résultats Railway:', successfulUploads.length, '/', photos.length);
+      console.log('📊 Résultats Railway final:', {
+        total: photos.length,
+        success: successfulUploads.length,
+        failed: failedUploads.length
+      });
 
       // ✅ CORRECTION CRITIQUE : Format des URLs dans la réponse
-      const photoUrls = successfulUploads.map(result => ({
-        url: result.photoUrl, // ✅ URL Cloudinary complète
-        alt: 'Photo de la demande'
-      }));
+      const photoUrls = successfulUploads
+        .filter(result => result.photoUrl) // Filtrer ceux qui ont une URL
+        .map(result => ({
+          url: result.photoUrl,
+          alt: 'Photo de la demande'
+        }));
 
-      console.log('🔗 URLs finales retournées:', photoUrls);
+      console.log('🔗 URLs finales retournées:', photoUrls.length);
 
       return {
-        success: failedUploads.length === 0,
+        success: failedUploads.length === 0 && successfulUploads.length > 0,
         successfulUploads,
         failedUploads,
-        photoUrls, // ✅ Format correct avec URLs complètes
+        photoUrls,
+        error: failedUploads.length > 0 ? `${failedUploads.length} photos ont échoué` : null
       };
 
     } catch (error) {
-      console.error('❌ Erreur multiple Railway:', error);
+      console.error('❌ Erreur critique multiple Railway:', error);
       return {
         success: false,
-        error: 'Erreur Railway: ' + error.message,
+        error: `Erreur critique: ${error.message}`,
         successfulUploads: [],
         failedUploads: photos.map(photo => ({ photo, error: error.message })),
         photoUrls: [],
@@ -267,70 +341,83 @@ class PhotoUploadService {
   }
 
   /**
-   * Valider une photo - VERSION CORRIGÉE POUR EXPO
+   * Valider une photo - VERSION ULTRA ROBUSTE
    */
   validatePhoto(photo) {
     const errors = [];
 
-    console.log('🔍 Validation photo:', {
-      name: photo.name,
-      type: photo.type,
-      size: photo.size,
-      uri: photo.uri?.substring(0, 50) + '...'
+    console.log('🔍 Validation photo ultra complète:', {
+      name: photo?.name,
+      type: photo?.type,
+      size: photo?.size,
+      uri: photo?.uri?.substring(0, 50) + '...',
+      hasAllProps: !!(photo && photo.uri && photo.name),
+      isObject: typeof photo === 'object'
     });
 
-    // Taille max 5MB
-    if (photo.size && photo.size > 5 * 1024 * 1024) {
-      errors.push('Photo trop volumineuse (max 5MB)');
+    // Vérifier que c'est un objet
+    if (!photo || typeof photo !== 'object') {
+      errors.push('Photo doit être un objet valide');
+      return { isValid: false, errors };
     }
 
-    // ✅ CORRECTION : Types MIME plus permissifs pour Expo
+    // URI obligatoire et valide
+    if (!photo.uri || typeof photo.uri !== 'string') {
+      errors.push('URI de photo manquante ou invalide');
+    } else if (!photo.uri.startsWith('file://') && !photo.uri.startsWith('content://')) {
+      console.warn('⚠️ URI format inattendu:', photo.uri.substring(0, 30));
+      // Accepter quand même d'autres formats
+    }
+
+    // Taille max 10MB (plus généreux)
+    if (photo.size && photo.size > 10 * 1024 * 1024) {
+      errors.push('Photo trop volumineuse (max 10MB)');
+    } else if (photo.size && photo.size < 100) {
+      errors.push('Photo trop petite (min 100 bytes)');
+    }
+
+    // Types MIME ultra permissifs
     const allowedTypes = [
-      'image/jpeg', 
-      'image/jpg', 
-      'image/png',
-      'image/JPEG',  // Expo peut retourner en majuscules
-      'image/JPG',
-      'image/PNG'
+      'image/jpeg', 'image/jpg', 'image/png',
+      'image/JPEG', 'image/JPG', 'image/PNG', // Majuscules
+      'image/webp', 'image/WEBP' // Bonus
     ];
     
-    // ✅ CORRECTION : Vérifier si le type existe ET s'il est valide
     if (photo.type) {
       if (!allowedTypes.includes(photo.type)) {
-        console.warn('⚠️ Type MIME non reconnu:', photo.type);
-        
-        // ✅ FALLBACK : Vérifier l'extension du fichier
+        // Vérifier l'extension comme fallback
         if (photo.name) {
           const extension = photo.name.toLowerCase().split('.').pop();
-          if (!['jpg', 'jpeg', 'png'].includes(extension)) {
-            errors.push(`Format non supporté: ${photo.type}. Utilisez JPG ou PNG`);
+          if (!['jpg', 'jpeg', 'png', 'webp'].includes(extension)) {
+            errors.push(`Format non supporté: ${photo.type}. Utilisez JPG, PNG ou WebP`);
           } else {
             console.log('✅ Type validé via extension:', extension);
           }
         } else {
-          // ✅ Si pas de nom de fichier, accepter quand même (Expo peut être inconsistant)
-          console.log('⚠️ Pas de nom de fichier, acceptation par défaut');
+          console.log('⚠️ Type MIME non reconnu mais accepté:', photo.type);
         }
-      } else {
-        console.log('✅ Type MIME valide:', photo.type);
       }
     } else {
-      // ✅ CORRECTION : Si pas de type MIME, vérifier l'URI
-      if (photo.uri && (photo.uri.includes('.jpg') || photo.uri.includes('.jpeg') || photo.uri.includes('.png'))) {
-        console.log('✅ Type validé via URI');
+      console.log('⚠️ Pas de type MIME, validation via nom de fichier...');
+      if (photo.name) {
+        const extension = photo.name.toLowerCase().split('.').pop();
+        if (!['jpg', 'jpeg', 'png', 'webp'].includes(extension)) {
+          errors.push('Extension de fichier non supportée');
+        }
       } else {
-        console.log('⚠️ Aucun type MIME, acceptation par défaut (Expo)');
+        console.log('⚠️ Ni type MIME ni nom de fichier, acceptation par défaut');
       }
     }
 
-    // URI valide
-    if (!photo.uri) {
-      errors.push('Photo invalide - pas d\'URI');
+    // Nom de fichier
+    if (!photo.name || typeof photo.name !== 'string') {
+      console.warn('⚠️ Pas de nom de fichier, génération automatique');
+      // Pas d'erreur, on peut générer un nom
     }
 
-    console.log('📋 Résultat validation:', {
+    console.log('📋 Résultat validation ultra:', {
       isValid: errors.length === 0,
-      errors
+      errors: errors
     });
 
     return {
@@ -340,53 +427,15 @@ class PhotoUploadService {
   }
 
   /**
-   * Supprimer une photo sur Railway
-   */
-  async deletePhoto(photoId) {
-    try {
-      const token = await SecureStore.getItemAsync('authToken');
-      if (!token) {
-        throw new Error('Token requis');
-      }
-
-      const response = await fetch(`${this.baseURL}/photos/${photoId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        console.log('✅ Photo supprimée de Railway');
-        return { success: true };
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        return {
-          success: false,
-          error: errorData.error || 'Erreur suppression Railway',
-        };
-      }
-
-    } catch (error) {
-      console.error('❌ Erreur suppression Railway:', error);
-      return {
-        success: false,
-        error: 'Impossible de supprimer sur Railway',
-      };
-    }
-  }
-
-  /**
    * Configuration Railway
    */
   getConfig() {
     return {
       baseURL: this.baseURL,
-      maxFileSize: 5 * 1024 * 1024, // 5MB
-      allowedTypes: ['image/jpeg', 'image/jpg', 'image/png'],
+      maxFileSize: 10 * 1024 * 1024, // 10MB
+      allowedTypes: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'],
       maxPhotos: 5,
-      timeout: 90000, // 90 secondes
+      timeout: 60000, // 60 secondes
       platform: 'Railway',
       cloudinaryUrl: 'https://res.cloudinary.com/Root/image/upload/'
     };
