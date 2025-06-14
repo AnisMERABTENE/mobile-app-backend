@@ -88,27 +88,56 @@ const MyRequestsScreen = ({ navigation }) => {
     });
   };
 
-  // ✅ FONCTION UTILITAIRE POUR EXTRAIRE L'URL D'UNE PHOTO
+  // ✅ FONCTION CORRIGÉE POUR CLOUDINARY DIRECT
   const getPhotoUri = (photo) => {
     if (!photo) return null;
     
-    // Si c'est une string directe (URL)
+    // Configuration Cloudinary
+    const CLOUDINARY_CLOUD_NAME = 'drch6mjsd';
+    const CLOUDINARY_BASE_URL = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/`;
+    
+    // Si c'est une string directe (nom de fichier ou URL)
     if (typeof photo === 'string') {
-      return photo;
+      // Si c'est déjà une URL complète Cloudinary
+      if (photo.startsWith('https://res.cloudinary.com/')) {
+        console.log('✅ URL Cloudinary directe:', photo);
+        return photo;
+      }
+      
+      // Si c'est déjà une URL HTTP complète (autre serveur)
+      if (photo.startsWith('http://') || photo.startsWith('https://')) {
+        console.log('✅ URL externe directe:', photo);
+        return photo;
+      }
+      
+      // Si c'est juste un nom de fichier, construire l'URL Cloudinary
+      let publicId = photo;
+      
+      // Nettoyer le nom de fichier
+      if (publicId.includes('.')) {
+        publicId = publicId.split('.')[0]; // Enlever l'extension
+      }
+      
+      const cloudinaryUrl = `${CLOUDINARY_BASE_URL}${publicId}`;
+      console.log('🔧 URL Cloudinary construite:', cloudinaryUrl);
+      return cloudinaryUrl;
     }
     
     // Si c'est un objet avec url
     if (photo.url) {
+      console.log('✅ URL depuis objet.url:', photo.url);
       return photo.url;
     }
     
     // Si c'est un objet avec uri (format upload)
     if (photo.uri) {
+      console.log('✅ URI depuis objet.uri:', photo.uri);
       return photo.uri;
     }
     
     // Si c'est un objet avec photoUrl (format service)
     if (photo.photoUrl) {
+      console.log('✅ URL depuis objet.photoUrl:', photo.photoUrl);
       return photo.photoUrl;
     }
     
@@ -289,7 +318,7 @@ const MyRequestsScreen = ({ navigation }) => {
                   {request.description}
                 </Text>
 
-                {/* Photos - ✅ VERSION CORRIGÉE */}
+                {/* Photos - ✅ VERSION ULTRA CORRIGÉE */}
                 {request.photos && request.photos.length > 0 && (
                   <ScrollView 
                     horizontal 
@@ -304,6 +333,8 @@ const MyRequestsScreen = ({ navigation }) => {
                         return null;
                       }
 
+                      console.log(`📸 Affichage photo ${index + 1}:`, photoUri);
+
                       return (
                         <Image
                           key={index}
@@ -315,6 +346,9 @@ const MyRequestsScreen = ({ navigation }) => {
                           }}
                           onLoad={() => {
                             console.log('✅ Photo chargée avec succès:', photoUri);
+                          }}
+                          onLoadStart={() => {
+                            console.log('🔄 Début chargement photo:', photoUri);
                           }}
                         />
                       );

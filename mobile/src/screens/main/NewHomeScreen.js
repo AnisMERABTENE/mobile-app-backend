@@ -269,9 +269,42 @@ const NewHomeScreen = ({ navigation }) => {
 
   // Dans NewHomeScreen.js, modifier la fonction proceedWithRequest
 
-const proceedWithRequest = async (photoUrls) => {
+  const proceedWithRequest = async (photoUrls) => {
     try {
       console.log('📝 Création de la demande avec', photoUrls.length, 'photos...');
+      
+      // ✅ CORRECTION CRITIQUE : Préparer les photos au bon format
+      let formattedPhotos = [];
+      
+      if (photoUrls && photoUrls.length > 0) {
+        console.log('🔧 Formatage des URLs photos pour sauvegarde...');
+        
+        formattedPhotos = photoUrls.map((photoData, index) => {
+          // Si c'est déjà un objet avec url
+          if (typeof photoData === 'object' && photoData.url) {
+            console.log(`📸 Photo ${index + 1}: URL objet`, photoData.url);
+            return {
+              url: photoData.url,
+              alt: photoData.alt || 'Photo de la demande'
+            };
+          }
+          
+          // Si c'est une string (URL directe)
+          if (typeof photoData === 'string') {
+            console.log(`📸 Photo ${index + 1}: URL string`, photoData);
+            return {
+              url: photoData,
+              alt: 'Photo de la demande'
+            };
+          }
+          
+          console.warn('⚠️ Format photo non reconnu:', photoData);
+          return null;
+        }).filter(Boolean); // Enlever les nulls
+        
+        console.log('✅ Photos formatées pour sauvegarde:', formattedPhotos.length);
+        console.log('🔗 Première photo URL:', formattedPhotos[0]?.url);
+      }
       
       // Construire les données de la demande
       const requestData = {
@@ -282,12 +315,12 @@ const proceedWithRequest = async (photoUrls) => {
         location: formData.location,
         radius: formData.radius,
         priority: formData.priority,
-        photos: photoUrls,
+        photos: formattedPhotos, // ✅ CORRECTION : Format objet avec URL
         tags: extractTags(formData.description)
       };
   
       console.log('📝 Envoi de la demande au serveur...');
-      console.log('📸 Avec', photoUrls.length, 'photos');
+      console.log('📸 Avec', formattedPhotos.length, 'photos formatées');
       
       const result = await RequestService.createRequest(requestData);
   
@@ -299,8 +332,8 @@ const proceedWithRequest = async (photoUrls) => {
         // ✅ CORRECTION : Réinitialiser automatiquement les champs
         resetForm();
         
-        const successMessage = photoUrls.length > 0 
-          ? `Votre demande "${result.data.title}" a été publiée avec ${photoUrls.length} photo(s). Vous recevrez des notifications quand des personnes répondront.`
+        const successMessage = formattedPhotos.length > 0 
+          ? `Votre demande "${result.data.title}" a été publiée avec ${formattedPhotos.length} photo(s). Vous recevrez des notifications quand des personnes répondront.`
           : `Votre demande "${result.data.title}" a été publiée sans photos. Vous recevrez des notifications quand des personnes répondront.`;
         
         Alert.alert(
