@@ -203,76 +203,86 @@ const getRequestById = async (req, res) => {
 };
 
 /**
- * Rechercher des demandes par proximité
+ * Rechercher des demandes par proximité - VERSION CORRIGÉE
  */
 const searchRequestsNearby = async (req, res) => {
-  try {
-    const { longitude, latitude, maxDistance = 10000, category, page = 1, limit = 20 } = req.query;
-
-    // 1. Valider les coordonnées
-    if (!longitude || !latitude) {
-      return res.status(400).json({
-        error: 'Coordonnées de géolocalisation requises'
+    try {
+      const { longitude, latitude, maxDistance = 10000, category, page = 1, limit = 20 } = req.query;
+  
+      // 1. Valider les coordonnées
+      if (!longitude || !latitude) {
+        return res.status(400).json({
+          error: 'Coordonnées de géolocalisation requises'
+        });
+      }
+  
+      // 2. ✅ CORRECTION : Utiliser $geoWithin au lieu de $near
+      const filter = {
+        location: {
+          $geoWithin: {
+            $centerSphere: [
+              [parseFloat(longitude), parseFloat(latitude)], 
+              parseInt(maxDistance) / 6378100 // Convertir mètres en radians
+            ]
+          }
+        },
+        status: 'active',
+        expiresAt: { $gt: new Date() }
+      };
+  
+      // Filtrer par catégorie si spécifiée
+      if (category) {
+        filter.category = category;
+      }
+  
+      // 3. Pagination
+      const skip = (page - 1) * limit;
+  
+      // 4. ✅ CORRECTION : Réorganiser l'ordre des opérations
+      const requests = await Request.find(filter)
+        .populate('user', 'firstName lastName avatar')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit));
+  
+      // 5. ✅ CORRECTION : Compter sans géolocalisation pour éviter l'erreur
+      const countFilter = { ...filter };
+      delete countFilter.location; // Supprimer temporairement pour le count
+      countFilter.location = {
+        $geoWithin: {
+          $centerSphere: [
+            [parseFloat(longitude), parseFloat(latitude)], 
+            parseInt(maxDistance) / 6378100
+          ]
+        }
+      };
+      const total = await Request.countDocuments(countFilter);
+  
+      console.log(`🗺️ ${requests.length} demandes trouvées près de [${latitude}, ${longitude}]`);
+  
+      res.json({
+        requests,
+        pagination: {
+          current: parseInt(page),
+          total: Math.ceil(total / limit),
+          count: requests.length,
+          totalItems: total
+        },
+        searchParams: {
+          longitude: parseFloat(longitude),
+          latitude: parseFloat(latitude),
+          maxDistance: parseInt(maxDistance),
+          category
+        }
+      });
+  
+    } catch (error) {
+      console.error('❌ Erreur recherche proximité:', error);
+      res.status(500).json({
+        error: 'Erreur lors de la recherche'
       });
     }
-
-    // 2. Construire le filtre
-    const filter = {
-      location: {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [parseFloat(longitude), parseFloat(latitude)]
-          },
-          $maxDistance: parseInt(maxDistance)
-        }
-      },
-      status: 'active',
-      expiresAt: { $gt: new Date() }
-    };
-
-    // Filtrer par catégorie si spécifiée
-    if (category) {
-      filter.category = category;
-    }
-
-    // 3. Pagination
-    const skip = (page - 1) * limit;
-
-    // 4. Rechercher
-    const requests = await Request.find(filter)
-      .skip(skip)
-      .limit(parseInt(limit))
-      .populate('user', 'firstName lastName avatar')
-      .sort({ createdAt: -1 });
-
-    const total = await Request.countDocuments(filter);
-
-    console.log(`🗺️ ${requests.length} demandes trouvées près de [${latitude}, ${longitude}]`);
-
-    res.json({
-      requests,
-      pagination: {
-        current: parseInt(page),
-        total: Math.ceil(total / limit),
-        count: requests.length,
-        totalItems: total
-      },
-      searchParams: {
-        longitude: parseFloat(longitude),
-        latitude: parseFloat(latitude),
-        maxDistance: parseInt(maxDistance),
-        category
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Erreur recherche proximité:', error);
-    res.status(500).json({
-      error: 'Erreur lors de la recherche'
-    });
-  }
-};
+  };
 
 /**
  * Mettre à jour une demande
