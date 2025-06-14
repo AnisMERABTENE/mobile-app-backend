@@ -14,15 +14,17 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '../../context/AuthContext';
-import { useNotifications } from '../../context/NotificationContext'; // ✅ NOUVEAU
-import NotificationBell from '../../components/NotificationBell'; // ✅ NOUVEAU
+import { useNotifications } from '../../context/NotificationContext';
+import NotificationBell from '../../components/NotificationBell';
 import Button from '../../components/Button';
 import SellerService from '../../services/sellerService';
+// ✅ AJOUT : Import du service de photos
+import PhotoUploadService from '../../services/photoUploadService';
 import colors, { getGradientString } from '../../styles/colors';
 
 const HomeScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
-  const { notifications, unreadCount } = useNotifications(); // ✅ NOUVEAU
+  const { notifications, unreadCount } = useNotifications();
   const [sellerProfile, setSellerProfile] = useState(null);
   const [loadingSellerCheck, setLoadingSellerCheck] = useState(true);
 
@@ -41,12 +43,10 @@ const HomeScreen = ({ navigation }) => {
         setSellerProfile(result.data);
         console.log('✅ Profil vendeur trouvé:', result.data.businessName);
       } else {
-        // C'est NORMAL de ne pas avoir de profil vendeur au début
         setSellerProfile(null);
         console.log('ℹ️ Pas de profil vendeur (normal pour nouveaux utilisateurs)');
       }
     } catch (error) {
-      // Ne pas afficher d'erreur si c'est juste "pas de profil trouvé"
       console.log('ℹ️ Aucun profil vendeur existant (c\'est normal)');
       setSellerProfile(null);
     } finally {
@@ -54,13 +54,43 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-  // ✅ NOUVELLE FONCTION : Gérer le clic sur la cloche
+  // ✅ NOUVELLE FONCTION : Test de connexion upload
+  const testUploadConnection = async () => {
+    try {
+      console.log('🧪 Test connexion mobile → Railway...');
+      
+      const result = await PhotoUploadService.testUploadEndpoint();
+      
+      if (result.success) {
+        Alert.alert(
+          '✅ Connexion OK !', 
+          'La connexion entre votre mobile et Railway fonctionne parfaitement !\n\nVous pouvez maintenant tester l\'upload de photos.',
+          [{ text: 'Super !', style: 'default' }]
+        );
+        console.log('✅ Test connexion réussi:', result.data);
+      } else {
+        Alert.alert(
+          '❌ Problème de connexion', 
+          `Erreur: ${result.error}\n\nVérifiez votre connexion internet.`,
+          [{ text: 'OK', style: 'default' }]
+        );
+        console.error('❌ Test connexion échoué:', result.error);
+      }
+    } catch (error) {
+      Alert.alert(
+        '❌ Erreur technique', 
+        `Une erreur s'est produite: ${error.message}`,
+        [{ text: 'OK', style: 'default' }]
+      );
+      console.error('❌ Erreur test connexion:', error);
+    }
+  };
+
   const handleNotificationPress = () => {
     console.log('🔔 Clic sur les notifications');
     console.log('📋 Notifications:', notifications.length);
     console.log('🔴 Non lues:', unreadCount);
 
-    // Pour l'instant, juste afficher un alert avec les notifications
     if (notifications.length === 0) {
       Alert.alert('Notifications', 'Aucune notification pour le moment');
     } else {
@@ -100,7 +130,6 @@ const HomeScreen = ({ navigation }) => {
 
   const handleManageSellerProfile = () => {
     console.log('🔄 Redirection vers gestion profil vendeur...');
-    // TODO: Créer l'écran de gestion du profil vendeur
     Alert.alert('Info', 'Gestion du profil vendeur en cours de développement...');
   };
 
@@ -130,7 +159,7 @@ const HomeScreen = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
       
-      {/* Header avec gradient - ✅ MODIFIÉ AVEC CLOCHE */}
+      {/* Header avec gradient */}
       <LinearGradient
         colors={getGradientString('primary')}
         style={styles.header}
@@ -164,7 +193,6 @@ const HomeScreen = ({ navigation }) => {
                   </Text>
                 </View>
                 
-                {/* Badge vendeur si applicable */}
                 {sellerProfile && (
                   <View style={[styles.roleBadge, styles.sellerBadge]}>
                     <Ionicons name="business" size={12} color={colors.white} />
@@ -175,9 +203,7 @@ const HomeScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* ✅ NOUVEAU : Actions du header avec cloche */}
           <View style={styles.headerActions}>
-            {/* Cloche de notifications pour les vendeurs */}
             {sellerProfile && (
               <NotificationBell
                 onPress={handleNotificationPress}
@@ -195,10 +221,34 @@ const HomeScreen = ({ navigation }) => {
         </View>
       </LinearGradient>
 
-      {/* Rest of your existing content... */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Le reste du contenu reste identique pour l'instant */}
         <View style={styles.contentPadding}>
+          
+          {/* ✅ SECTION DE TEST AJOUTÉE ICI - AU DÉBUT DU CONTENU */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🧪 Test du système</Text>
+            
+            <View style={styles.testCard}>
+              <View style={styles.testHeader}>
+                <Ionicons name="flask" size={24} color={colors.primary} />
+                <Text style={styles.testTitle}>Test de l'upload de photos</Text>
+              </View>
+              
+              <Text style={styles.testDescription}>
+                Vérifiez que la connexion entre votre mobile et le serveur Railway fonctionne correctement.
+              </Text>
+              
+              <TouchableOpacity 
+                style={styles.testButton}
+                onPress={testUploadConnection}
+              >
+                <Ionicons name="cloud-upload-outline" size={20} color={colors.white} />
+                <Text style={styles.testButtonText}>
+                  Tester la connexion Railway
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
           
           {/* Section Vendeur */}
           <View style={styles.section}>
@@ -207,7 +257,6 @@ const HomeScreen = ({ navigation }) => {
             {!loadingSellerCheck && (
               <>
                 {sellerProfile ? (
-                  // Utilisateur déjà vendeur
                   <View style={styles.sellerCard}>
                     <View style={styles.sellerCardHeader}>
                       <Ionicons name="business" size={24} color={colors.success} />
@@ -217,7 +266,6 @@ const HomeScreen = ({ navigation }) => {
                       Vous recevez actuellement des demandes dans votre zone.
                     </Text>
                     
-                    {/* ✅ NOUVEAU : Affichage des notifications pour vendeurs */}
                     {unreadCount > 0 && (
                       <View style={styles.notificationAlert}>
                         <Ionicons name="notifications" size={20} color={colors.warning} />
@@ -247,7 +295,6 @@ const HomeScreen = ({ navigation }) => {
                     />
                   </View>
                 ) : (
-                  // Utilisateur pas encore vendeur
                   <View style={styles.becomeSellerCard}>
                     <View style={styles.becomeSellerHeader}>
                       <Ionicons name="business-outline" size={48} color={colors.primary} />
@@ -285,8 +332,6 @@ const HomeScreen = ({ navigation }) => {
               </>
             )}
           </View>
-
-          {/* Rest of your existing sections... */}
           
         </View>
       </ScrollView>
@@ -294,7 +339,6 @@ const HomeScreen = ({ navigation }) => {
   );
 };
 
-// ✅ STYLES MODIFIÉS ET NOUVEAUX
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -369,7 +413,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 2,
   },
-  // ✅ NOUVEAUX STYLES POUR LE HEADER
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -380,7 +423,6 @@ const styles = StyleSheet.create({
   logoutButton: {
     padding: 8,
   },
-  // ✅ NOUVEAUX STYLES POUR LES NOTIFICATIONS
   notificationAlert: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -395,7 +437,6 @@ const styles = StyleSheet.create({
     color: colors.warning,
     fontWeight: '600',
   },
-  // ... rest of your existing styles
   content: {
     flex: 1,
     marginTop: -15,
@@ -412,6 +453,51 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     marginBottom: 16,
   },
+  // ✅ NOUVEAUX STYLES POUR LA SECTION DE TEST
+  testCard: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: '#ff6b6b30',
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  testHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  testTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginLeft: 8,
+  },
+  testDescription: {
+    fontSize: 14,
+    color: colors.text.secondary,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  testButton: {
+    backgroundColor: '#ff6b6b',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 15,
+    borderRadius: 12,
+  },
+  testButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  // Styles existants...
   sellerCard: {
     backgroundColor: colors.white,
     borderRadius: 16,

@@ -7,7 +7,6 @@ import {
   Image,
   ScrollView,
   Alert,
-  ActionSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -35,6 +34,13 @@ const PhotoPicker = ({
       
       if (cameraPermission.status !== 'granted' || mediaPermission.status !== 'granted') {
         console.log('📸 Permissions photos non accordées');
+        Alert.alert(
+          'Permissions requises',
+          'L\'application a besoin des permissions caméra et galerie pour fonctionner correctement.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        console.log('✅ Permissions photos accordées');
       }
     } catch (error) {
       console.error('❌ Erreur vérification permissions photos:', error);
@@ -56,46 +62,43 @@ const PhotoPicker = ({
   const openCamera = async () => {
     try {
       setLoading(true);
+      console.log('📷 Ouverture caméra...');
       
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 0.8,
+        quality: 0.8, // ✅ CORRECTION : Qualité pour réduire la taille
         base64: false,
+      });
+
+      console.log('📷 Résultat caméra:', {
+        cancelled: result.canceled,
+        assetsLength: result.assets?.length
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
+        console.log('📷 Asset caméra:', {
+          uri: asset.uri?.substring(0, 50) + '...',
+          type: asset.type,
+          fileName: asset.fileName,
+          fileSize: asset.fileSize
+        });
         
-        // ✅ CORRECTION : S'assurer que le type MIME est correct
-        let mimeType = asset.type || 'image/jpeg';
-        if (!mimeType.startsWith('image/')) {
-          mimeType = 'image/jpeg'; // Fallback par défaut
+        // ✅ CORRECTION CRITIQUE : Création photo améliorée
+        const newPhoto = createPhotoObject(asset, 'camera');
+        
+        if (newPhoto) {
+          console.log('📸 Photo caméra créée:', newPhoto.name);
+          addPhoto(newPhoto);
+        } else {
+          Alert.alert('Erreur', 'Impossible de traiter la photo de la caméra');
         }
-        
-        // ✅ CORRECTION : Générer un nom de fichier avec la bonne extension
-        let fileName = asset.fileName || `photo_${Date.now()}.jpg`;
-        if (!fileName.includes('.')) {
-          // Si pas d'extension, l'ajouter basé sur le type MIME
-          const extension = mimeType === 'image/png' ? '.png' : '.jpg';
-          fileName = `photo_${Date.now()}${extension}`;
-        }
-        
-        const newPhoto = {
-          id: Date.now().toString(),
-          uri: asset.uri,
-          type: mimeType,
-          name: fileName,
-          size: asset.fileSize || 0,
-        };
-        
-        console.log('📸 Photo caméra créée:', newPhoto);
-        addPhoto(newPhoto);
       }
     } catch (error) {
       console.error('❌ Erreur caméra:', error);
-      Alert.alert('Erreur', 'Impossible d\'accéder à la caméra');
+      Alert.alert('Erreur', 'Impossible d\'accéder à la caméra: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -104,74 +107,166 @@ const PhotoPicker = ({
   const openGallery = async () => {
     try {
       setLoading(true);
+      console.log('🖼️ Ouverture galerie...');
       
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 0.8,
+        quality: 0.8, // ✅ CORRECTION : Qualité pour réduire la taille
         base64: false,
-        allowsMultipleSelection: false, // ✅ CORRECTION : Désactiver sélection multiple pour éviter les problèmes
+        allowsMultipleSelection: false, // Une seule photo à la fois
+      });
+
+      console.log('🖼️ Résultat galerie:', {
+        cancelled: result.canceled,
+        assetsLength: result.assets?.length
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        result.assets.forEach((asset, index) => {
-          // ✅ CORRECTION : S'assurer que le type MIME est correct
-          let mimeType = asset.type || 'image/jpeg';
-          if (!mimeType.startsWith('image/')) {
-            mimeType = 'image/jpeg'; // Fallback par défaut
-          }
-          
-          // ✅ CORRECTION : Générer un nom de fichier avec la bonne extension
-          let fileName = asset.fileName || `photo_${Date.now() + index}.jpg`;
-          if (!fileName.includes('.')) {
-            // Si pas d'extension, l'ajouter basé sur le type MIME
-            const extension = mimeType === 'image/png' ? '.png' : '.jpg';
-            fileName = `photo_${Date.now() + index}${extension}`;
-          }
-          
-          const newPhoto = {
-            id: (Date.now() + index).toString(),
-            uri: asset.uri,
-            type: mimeType,
-            name: fileName,
-            size: asset.fileSize || 0,
-          };
-          
-          console.log('🖼️ Photo galerie créée:', newPhoto);
-          addPhoto(newPhoto);
+        const asset = result.assets[0];
+        console.log('🖼️ Asset galerie:', {
+          uri: asset.uri?.substring(0, 50) + '...',
+          type: asset.type,
+          fileName: asset.fileName,
+          fileSize: asset.fileSize
         });
+        
+        // ✅ CORRECTION CRITIQUE : Création photo améliorée
+        const newPhoto = createPhotoObject(asset, 'gallery');
+        
+        if (newPhoto) {
+          console.log('🖼️ Photo galerie créée:', newPhoto.name);
+          addPhoto(newPhoto);
+        } else {
+          Alert.alert('Erreur', 'Impossible de traiter la photo de la galerie');
+        }
       }
     } catch (error) {
       console.error('❌ Erreur galerie:', error);
-      Alert.alert('Erreur', 'Impossible d\'accéder à la galerie');
+      Alert.alert('Erreur', 'Impossible d\'accéder à la galerie: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
 
+  // ✅ NOUVELLE FONCTION : Création d'objet photo normalisé
+  const createPhotoObject = (asset, source) => {
+    try {
+      if (!asset || !asset.uri) {
+        console.error('❌ Asset invalide:', asset);
+        return null;
+      }
+
+      // ✅ CORRECTION : Détecter le type MIME correct
+      let mimeType = asset.type || 'image/jpeg';
+      let fileName = asset.fileName || asset.filename || `photo_${Date.now()}.jpg`;
+      
+      // Si pas de type MIME, le déduire du nom de fichier
+      if (!mimeType.startsWith('image/')) {
+        if (fileName.toLowerCase().includes('.png')) {
+          mimeType = 'image/png';
+        } else if (fileName.toLowerCase().includes('.webp')) {
+          mimeType = 'image/webp';
+        } else {
+          mimeType = 'image/jpeg'; // Fallback
+        }
+      }
+      
+      // Si pas d'extension dans le nom, l'ajouter
+      if (!fileName.includes('.')) {
+        const extension = mimeType === 'image/png' ? '.png' : 
+                         mimeType === 'image/webp' ? '.webp' : '.jpg';
+        fileName = `photo_${Date.now()}${extension}`;
+      }
+      
+      // ✅ CORRECTION : Gérer la taille
+      let fileSize = asset.fileSize || asset.size || 0;
+      
+      // Si pas de taille, estimer (optionnel)
+      if (!fileSize && asset.width && asset.height) {
+        // Estimation grossière basée sur les dimensions
+        fileSize = Math.round((asset.width * asset.height * 3) / 4); // RGB compressé
+      }
+      
+      const photo = {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+        uri: asset.uri,
+        type: mimeType,
+        name: fileName,
+        size: fileSize,
+        source: source,
+        width: asset.width,
+        height: asset.height,
+        created: new Date().toISOString()
+      };
+      
+      console.log('✅ Photo normalisée créée:', {
+        name: photo.name,
+        type: photo.type,
+        size: photo.size,
+        source: photo.source,
+        hasUri: !!photo.uri
+      });
+      
+      return photo;
+      
+    } catch (error) {
+      console.error('❌ Erreur création photo object:', error);
+      return null;
+    }
+  };
+
   const addPhoto = (newPhoto) => {
-    if (photos.length >= maxPhotos) {
-      Alert.alert(
-        'Limite atteinte',
-        `Vous ne pouvez ajouter que ${maxPhotos} photos maximum.`
-      );
-      return;
-    }
+    try {
+      if (photos.length >= maxPhotos) {
+        Alert.alert(
+          'Limite atteinte',
+          `Vous ne pouvez ajouter que ${maxPhotos} photos maximum.`
+        );
+        return;
+      }
 
-    // Vérifier la taille du fichier (max 5MB)
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (newPhoto.size && newPhoto.size > maxSize) {
-      Alert.alert(
-        'Fichier trop volumineux',
-        'La photo ne peut pas dépasser 5MB. Veuillez choisir une photo plus petite.'
-      );
-      return;
-    }
+      // ✅ CORRECTION : Vérification taille améliorée
+      const maxSize = 10 * 1024 * 1024; // 10MB (cohérent avec le backend)
+      if (newPhoto.size && newPhoto.size > maxSize) {
+        Alert.alert(
+          'Fichier trop volumineux',
+          `La photo ne peut pas dépasser 10MB. Taille actuelle: ${Math.round(newPhoto.size / 1024 / 1024)}MB`
+        );
+        return;
+      }
 
-    const updatedPhotos = [...photos, newPhoto];
-    onPhotosChange(updatedPhotos);
-    console.log('✅ Photo ajoutée:', newPhoto.name);
+      // ✅ CORRECTION : Vérification type MIME
+      const allowedTypes = [
+        'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+        'image/JPEG', 'image/JPG', 'image/PNG', 'image/WEBP'
+      ];
+      
+      if (newPhoto.type && !allowedTypes.includes(newPhoto.type)) {
+        Alert.alert(
+          'Format non supporté',
+          `Format ${newPhoto.type} non supporté. Utilisez JPG, PNG ou WebP.`
+        );
+        return;
+      }
+
+      const updatedPhotos = [...photos, newPhoto];
+      onPhotosChange(updatedPhotos);
+      console.log('✅ Photo ajoutée à la liste:', newPhoto.name);
+      
+      // Feedback visuel
+      Alert.alert(
+        '✅ Photo ajoutée',
+        `Photo "${newPhoto.name}" ajoutée avec succès !`,
+        [{ text: 'OK' }],
+        { cancelable: true }
+      );
+      
+    } catch (error) {
+      console.error('❌ Erreur ajout photo:', error);
+      Alert.alert('Erreur', 'Impossible d\'ajouter la photo: ' + error.message);
+    }
   };
 
   const removePhoto = (photoId) => {
@@ -184,9 +279,13 @@ const PhotoPicker = ({
           text: 'Supprimer', 
           style: 'destructive',
           onPress: () => {
-            const updatedPhotos = photos.filter(photo => photo.id !== photoId);
-            onPhotosChange(updatedPhotos);
-            console.log('🗑️ Photo supprimée');
+            try {
+              const updatedPhotos = photos.filter(photo => photo.id !== photoId);
+              onPhotosChange(updatedPhotos);
+              console.log('🗑️ Photo supprimée de la liste');
+            } catch (error) {
+              console.error('❌ Erreur suppression photo:', error);
+            }
           }
         },
       ]
@@ -222,6 +321,14 @@ const PhotoPicker = ({
             >
               <Ionicons name="close-circle" size={24} color={colors.danger} />
             </TouchableOpacity>
+            {/* ✅ NOUVEAU : Indicateur de taille */}
+            {photo.size && (
+              <View style={styles.sizeIndicator}>
+                <Text style={styles.sizeText}>
+                  {Math.round(photo.size / 1024)}KB
+                </Text>
+              </View>
+            )}
           </View>
         ))}
 
@@ -255,7 +362,7 @@ const PhotoPicker = ({
       <View style={styles.info}>
         <Ionicons name="information-circle-outline" size={16} color={colors.text.secondary} />
         <Text style={styles.infoText}>
-          Ajoutez des photos pour mieux décrire votre demande. Format accepté: JPG, PNG (max 5MB)
+          Ajoutez des photos pour mieux décrire votre demande. Format accepté: JPG, PNG, WebP (max 10MB)
         </Text>
       </View>
 
@@ -324,6 +431,21 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 4,
+  },
+  // ✅ NOUVEAU : Indicateur de taille
+  sizeIndicator: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  sizeText: {
+    fontSize: 10,
+    color: colors.white,
+    fontWeight: '500',
   },
   addButton: {
     width: 100,
