@@ -8,6 +8,7 @@ import {
   RefreshControl,
   Image,
   Alert,
+  Switch,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,61 +16,137 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import Loading from '../../components/Loading';
 import RequestService from '../../services/requestService';
+import SellerService from '../../services/sellerService';
 import colors, { getGradientString } from '../../styles/colors';
 
 const MyRequestsScreen = ({ navigation }) => {
   const { user } = useAuth();
   
+  // ✅ NOUVEAU : États pour le mode dual
+  const [viewMode, setViewMode] = useState('client'); // 'client' ou 'seller'
+  const [hasSellerProfile, setHasSellerProfile] = useState(false);
+  
+  // États existants
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState(null);
   const [selectedFilter, setSelectedFilter] = useState('all');
+  
+  // ✅ NOUVEAU : États pour mode vendeur
+  const [receivedRequests, setReceivedRequests] = useState([]);
+  const [sellerStats, setSellerStats] = useState(null);
 
   useEffect(() => {
+    checkSellerProfile();
     loadData();
   }, []);
 
+  // ✅ NOUVEAU : Recharger quand le mode change
+  useEffect(() => {
+    if (hasSellerProfile) {
+      loadData();
+    }
+  }, [viewMode]);
+
+  // ✅ NOUVEAU : Vérifier si l'utilisateur a un profil vendeur
+  const checkSellerProfile = async () => {
+    try {
+      const result = await SellerService.getMyProfile();
+      if (result.success) {
+        setHasSellerProfile(true);
+        console.log('✅ Profil vendeur trouvé:', result.data.businessName);
+      } else {
+        setHasSellerProfile(false);
+        setViewMode('client'); // Force le mode client si pas de profil vendeur
+        console.log('ℹ️ Pas de profil vendeur');
+      }
+    } catch (error) {
+      setHasSellerProfile(false);
+      setViewMode('client');
+      console.log('ℹ️ Pas de profil vendeur (normal)');
+    }
+  };
+
+  // ✅ MODIFIÉ : Fonction de chargement adaptée au mode
   const loadData = async () => {
     try {
       setLoading(true);
       
-      const [requestsResult, statsResult] = await Promise.all([
-        RequestService.getMyRequests(),
-        RequestService.getMyStats(),
-      ]);
-
-      if (requestsResult.success) {
-        setRequests(requestsResult.data.requests);
-        console.log('✅ Demandes chargées:', requestsResult.data.requests.length);
-        
-        // ✅ DEBUG PHOTOS - Vérifier le format des photos
-        requestsResult.data.requests.forEach((request, index) => {
-          if (request.photos && request.photos.length > 0) {
-            console.log(`🔍 DEBUG - Demande ${index + 1} "${request.title}":`, {
-              photosCount: request.photos.length,
-              firstPhoto: request.photos[0],
-              photoType: typeof request.photos[0],
-              photoKeys: typeof request.photos[0] === 'object' ? Object.keys(request.photos[0]) : 'N/A'
-            });
-          }
-        });
-        
-      } else {
-        console.error('❌ Erreur chargement demandes:', requestsResult.error);
-        Alert.alert('Erreur', 'Impossible de charger vos demandes');
+      if (viewMode === 'client') {
+        // Mode client : charger mes demandes créées (logique existante)
+        await loadClientData();
+      } else if (viewMode === 'seller' && hasSellerProfile) {
+        // Mode vendeur : charger les demandes reçues
+        await loadSellerData();
       }
-
-      if (statsResult.success) {
-        setStats(statsResult.data);
-        console.log('✅ Stats chargées');
-      }
-
+      
     } catch (error) {
       console.error('❌ Erreur loadData:', error);
       Alert.alert('Erreur', 'Erreur lors du chargement');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ✅ EXISTANT : Charger les données client (demandes créées)
+  const loadClientData = async () => {
+    const [requestsResult, statsResult] = await Promise.all([
+      RequestService.getMyRequests(),
+      RequestService.getMyStats(),
+    ]);
+
+    if (requestsResult.success) {
+      setRequests(requestsResult.data.requests);
+      console.log('✅ Demandes client chargées:', requestsResult.data.requests.length);
+      
+      // ✅ DEBUG PHOTOS - Vérifier le format des photos
+      requestsResult.data.requests.forEach((request, index) => {
+        if (request.photos && request.photos.length > 0) {
+          console.log(`🔍 DEBUG - Demande ${index + 1} "${request.title}":`, {
+            photosCount: request.photos.length,
+            firstPhoto: request.photos[0],
+            photoType: typeof request.photos[0],
+            photoKeys: typeof request.photos[0] === 'object' ? Object.keys(request.photos[0]) : 'N/A'
+          });
+        }
+      });
+      
+    } else {
+      console.error('❌ Erreur chargement demandes client:', requestsResult.error);
+      Alert.alert('Erreur', 'Impossible de charger vos demandes');
+    }
+
+    if (statsResult.success) {
+      setStats(statsResult.data);
+      console.log('✅ Stats client chargées');
+    }
+  };
+
+  // ✅ NOUVEAU : Charger les données vendeur (demandes reçues)
+  const loadSellerData = async () => {
+    try {
+      console.log('🛍️ Chargement des demandes reçues en tant que vendeur...');
+      
+      // TODO: Créer cette méthode dans RequestService ou SellerService
+      // Pour l'instant, on simule avec les demandes existantes
+      const result = await RequestService.getMyRequests(); // Temporaire
+      
+      if (result.success) {
+        // Temporaire : filtrer ou adapter les données
+        setReceivedRequests(result.data.requests);
+        console.log('✅ Demandes vendeur chargées:', result.data.requests.length);
+      }
+      
+      // Charger les stats vendeur
+      const sellerStatsResult = await SellerService.getMyStats();
+      if (sellerStatsResult.success) {
+        setSellerStats(sellerStatsResult.data);
+        console.log('✅ Stats vendeur chargées');
+      }
+      
+    } catch (error) {
+      console.error('❌ Erreur chargement données vendeur:', error);
     }
   };
 
@@ -84,11 +161,45 @@ const MyRequestsScreen = ({ navigation }) => {
     
     navigation.navigate('RequestDetail', {
       requestId: request._id,
-      request: request
+      request: request,
+      viewMode: viewMode, // ✅ NOUVEAU : Passer le mode pour adapter l'affichage
     });
   };
 
-  // ✅ FONCTION CORRIGÉE POUR CLOUDINARY DIRECT
+  // ✅ NOUVEAU : Fonction pour changer de mode
+  const handleModeChange = (newMode) => {
+    if (newMode === 'seller' && !hasSellerProfile) {
+      Alert.alert(
+        'Profil vendeur requis',
+        'Vous devez créer un profil vendeur pour accéder à cette section.',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { 
+            text: 'Créer profil', 
+            onPress: () => navigation.navigate('CreateSellerProfile')
+          }
+        ]
+      );
+      return;
+    }
+    
+    setViewMode(newMode);
+    setSelectedFilter('all'); // Reset le filtre
+  };
+
+  // ✅ MODIFIÉ : Fonction pour obtenir les données selon le mode
+  const getCurrentRequests = () => {
+    const currentRequests = viewMode === 'client' ? requests : receivedRequests;
+    
+    if (selectedFilter === 'all') return currentRequests;
+    return currentRequests.filter(request => request.status === selectedFilter);
+  };
+
+  const getCurrentStats = () => {
+    return viewMode === 'client' ? stats : sellerStats;
+  };
+
+  // ✅ FONCTION PHOTO EXISTANTE (inchangée)
   const getPhotoUri = (photo) => {
     if (!photo) return null;
     
@@ -184,32 +295,90 @@ const MyRequestsScreen = ({ navigation }) => {
     });
   };
 
-  const getFilteredRequests = () => {
-    if (selectedFilter === 'all') return requests;
-    return requests.filter(request => request.status === selectedFilter);
+  // ✅ MODIFIÉ : Filtres adaptés au mode
+  const getFilters = () => {
+    const currentRequests = viewMode === 'client' ? requests : receivedRequests;
+    
+    const filters = [
+      { id: 'all', label: 'Toutes', count: currentRequests.length },
+      { id: 'active', label: 'Actives', count: currentRequests.filter(r => r.status === 'active').length },
+      { id: 'completed', label: 'Terminées', count: currentRequests.filter(r => r.status === 'completed').length },
+    ];
+    
+    return filters;
   };
-
-  const filters = [
-    { id: 'all', label: 'Toutes', count: requests.length },
-    { id: 'active', label: 'Actives', count: requests.filter(r => r.status === 'active').length },
-    { id: 'completed', label: 'Terminées', count: requests.filter(r => r.status === 'completed').length },
-  ];
 
   if (loading) {
     return <Loading fullScreen text="Chargement de vos demandes..." />;
   }
 
+  const currentRequests = getCurrentRequests();
+  const currentStats = getCurrentStats();
+  const filters = getFilters();
+
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* ✅ NOUVEAU : Header avec mode selector */}
       <LinearGradient
         colors={getGradientString('primary')}
         style={styles.header}
       >
-        <Text style={styles.headerTitle}>Mes demandes</Text>
-        <Text style={styles.headerSubtitle}>
-          Gérez vos demandes en cours
-        </Text>
+        <View style={styles.headerTop}>
+          <Text style={styles.headerTitle}>
+            {viewMode === 'client' ? 'Mes demandes' : 'Demandes reçues'}
+          </Text>
+          <Text style={styles.headerSubtitle}>
+            {viewMode === 'client' 
+              ? 'Gérez vos demandes en cours' 
+              : 'Répondez aux demandes clients'
+            }
+          </Text>
+        </View>
+
+        {/* ✅ NOUVEAU : Mode selector */}
+        {hasSellerProfile && (
+          <View style={styles.modeSelector}>
+            <TouchableOpacity
+              style={[
+                styles.modeButton,
+                viewMode === 'client' && styles.modeButtonActive
+              ]}
+              onPress={() => handleModeChange('client')}
+            >
+              <Ionicons 
+                name="person-outline" 
+                size={20} 
+                color={viewMode === 'client' ? colors.primary : colors.white} 
+              />
+              <Text style={[
+                styles.modeButtonText,
+                viewMode === 'client' && styles.modeButtonTextActive
+              ]}>
+                Client
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.modeButton,
+                viewMode === 'seller' && styles.modeButtonActive
+              ]}
+              onPress={() => handleModeChange('seller')}
+            >
+              <Ionicons 
+                name="business-outline" 
+                size={20} 
+                color={viewMode === 'seller' ? colors.primary : colors.white} 
+              />
+              <Text style={[
+                styles.modeButtonText,
+                viewMode === 'seller' && styles.modeButtonTextActive
+              ]}>
+                Vendeur
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </LinearGradient>
 
       <ScrollView
@@ -218,20 +387,27 @@ const MyRequestsScreen = ({ navigation }) => {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
-        {/* Statistiques */}
-        {stats && (
+        {/* ✅ MODIFIÉ : Statistiques adaptées au mode */}
+        {currentStats && (
           <View style={styles.statsContainer}>
             <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{stats.total || 0}</Text>
+              <Text style={styles.statNumber}>{currentStats.total || 0}</Text>
               <Text style={styles.statLabel}>Total</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{stats.active || 0}</Text>
+              <Text style={styles.statNumber}>{currentStats.active || 0}</Text>
               <Text style={styles.statLabel}>Actives</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{stats.totalViews || 0}</Text>
-              <Text style={styles.statLabel}>Vues</Text>
+              <Text style={styles.statNumber}>
+                {viewMode === 'client' 
+                  ? (currentStats.totalViews || 0)
+                  : (currentStats.totalResponses || 0)
+                }
+              </Text>
+              <Text style={styles.statLabel}>
+                {viewMode === 'client' ? 'Vues' : 'Réponses'}
+              </Text>
             </View>
           </View>
         )}
@@ -262,21 +438,40 @@ const MyRequestsScreen = ({ navigation }) => {
           ))}
         </ScrollView>
 
-        {/* Liste des demandes */}
+        {/* ✅ MODIFIÉ : Liste des demandes adaptée au mode */}
         <View style={styles.requestsList}>
-          {getFilteredRequests().length === 0 ? (
+          {currentRequests.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="document-outline" size={64} color={colors.gray[400]} />
-              <Text style={styles.emptyTitle}>Aucune demande</Text>
+              <Ionicons 
+                name={viewMode === 'client' ? 'document-outline' : 'business-outline'} 
+                size={64} 
+                color={colors.gray[400]} 
+              />
+              <Text style={styles.emptyTitle}>
+                {viewMode === 'client' ? 'Aucune demande' : 'Aucune demande reçue'}
+              </Text>
               <Text style={styles.emptySubtitle}>
                 {selectedFilter === 'all' 
-                  ? 'Vous n\'avez pas encore créé de demande'
+                  ? (viewMode === 'client' 
+                      ? 'Vous n\'avez pas encore créé de demande'
+                      : 'Aucune demande reçue dans votre zone'
+                    )
                   : `Aucune demande ${filters.find(f => f.id === selectedFilter)?.label.toLowerCase()}`
                 }
               </Text>
+              
+              {/* ✅ NOUVEAU : Bouton d'aide selon le mode */}
+              {viewMode === 'client' && (
+                <TouchableOpacity 
+                  style={styles.helpButton}
+                  onPress={() => navigation.navigate('NewRequest')}
+                >
+                  <Text style={styles.helpButtonText}>+ Créer une demande</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
-            getFilteredRequests().map((request) => (
+            currentRequests.map((request) => (
               <TouchableOpacity
                 key={request._id}
                 style={styles.requestCard}
@@ -363,7 +558,7 @@ const MyRequestsScreen = ({ navigation }) => {
                   </ScrollView>
                 )}
 
-                {/* Footer de la carte */}
+                {/* ✅ MODIFIÉ : Footer de la carte adapté au mode */}
                 <View style={styles.requestFooter}>
                   <View style={styles.requestStats}>
                     <View style={styles.statItem}>
@@ -384,7 +579,10 @@ const MyRequestsScreen = ({ navigation }) => {
                     )}
                   </View>
                   
-                  <Text style={styles.viewDetailsText}>Voir détails</Text>
+                  {/* ✅ NOUVEAU : Action différente selon le mode */}
+                  <Text style={styles.viewDetailsText}>
+                    {viewMode === 'client' ? 'Voir détails' : 'Répondre'}
+                  </Text>
                 </View>
               </TouchableOpacity>
             ))
@@ -402,8 +600,12 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: 20,
-    paddingBottom: 30,
+    paddingBottom: 20,
     paddingHorizontal: 24,
+  },
+  // ✅ NOUVEAU : Styles pour le header
+  headerTop: {
+    marginBottom: 16,
   },
   headerTitle: {
     fontSize: 24,
@@ -416,9 +618,37 @@ const styles = StyleSheet.create({
     color: colors.white,
     opacity: 0.9,
   },
+  // ✅ NOUVEAU : Mode selector
+  modeSelector: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 25,
+    padding: 4,
+  },
+  modeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
+  modeButtonActive: {
+    backgroundColor: colors.white,
+  },
+  modeButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.white,
+    marginLeft: 6,
+  },
+  modeButtonTextActive: {
+    color: colors.primary,
+  },
   content: {
     flex: 1,
-    marginTop: -15,
+    marginTop: -10,
     backgroundColor: colors.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
@@ -490,6 +720,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text.secondary,
     textAlign: 'center',
+  },
+  // ✅ NOUVEAU : Bouton d'aide
+  helpButton: {
+    marginTop: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: colors.primary,
+    borderRadius: 20,
+  },
+  helpButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.white,
   },
   requestCard: {
     backgroundColor: colors.white,

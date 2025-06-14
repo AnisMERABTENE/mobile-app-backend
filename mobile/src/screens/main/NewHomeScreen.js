@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,9 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { useAuth } from '../../context/AuthContext';
+// ✅ NOUVEAU : Utiliser le hook de cache intelligent
+import { useCachedCategories } from '../../hooks/useCachedCategories';
+
 import Button from '../../components/Button';
 import Input from '../../components/Input';
 import CategorySelector from '../../components/CategorySelector';
@@ -30,6 +33,22 @@ import colors, { getGradientString } from '../../styles/colors';
 const NewHomeScreen = ({ navigation }) => {
   const { user } = useAuth();
   
+  // ✅ NOUVEAU : Utiliser le cache intelligent des catégories
+  const {
+    categories,
+    loading: categoriesLoading,
+    error: categoriesError,
+    isFromCache,
+    isReady,
+    getSubCategoriesForCategory,
+    loadSubCategories,
+    refresh: refreshCategories,
+    getStats: getCategoriesStats,
+  } = useCachedCategories({
+    autoLoad: true,
+    loadSubCategories: false,
+  });
+  
   // État du formulaire
   const [formData, setFormData] = useState({
     title: '',
@@ -44,38 +63,19 @@ const NewHomeScreen = ({ navigation }) => {
   });
 
   // État de l'interface
-  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [loadingCategories, setLoadingCategories] = useState(true);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [formErrors, setFormErrors] = useState({});
 
-  // Charger les catégories au démarrage
-  useEffect(() => {
-    loadCategories();
-  }, []);
-
-  const loadCategories = async () => {
-    try {
-      setLoadingCategories(true);
-      console.log('📂 Chargement des catégories...');
-      
-      const result = await RequestService.getCategories();
-      
-      if (result.success) {
-        setCategories(result.data);
-        console.log('✅ Catégories chargées:', result.data.length);
-      } else {
-        console.error('❌ Erreur chargement catégories:', result.error);
-        Alert.alert('Erreur', 'Impossible de charger les catégories');
-      }
-    } catch (error) {
-      console.error('❌ Erreur load categories:', error);
-      Alert.alert('Erreur', 'Erreur lors du chargement');
-    } finally {
-      setLoadingCategories(false);
+  // ✅ NOUVEAU : Debug du cache des catégories
+  React.useEffect(() => {
+    if (isReady) {
+      const stats = getCategoriesStats();
+      console.log('📂 Stats cache catégories NewHomeScreen:', stats);
+      console.log('📂 Catégories chargées:', categories.length);
+      console.log('📂 Source:', isFromCache ? 'Cache' : 'API');
     }
-  };
+  }, [isReady, isFromCache]);
 
   // Gérer les changements de formulaire
   const handleInputChange = (field, value) => {
@@ -87,7 +87,8 @@ const NewHomeScreen = ({ navigation }) => {
     }
   };
 
-  const handleCategorySelect = (categoryId) => {
+  // ✅ AMÉLIORATION : Chargement des sous-catégories avec cache
+  const handleCategorySelect = async (categoryId) => {
     setFormData(prev => ({ 
       ...prev, 
       category: categoryId,
@@ -96,6 +97,17 @@ const NewHomeScreen = ({ navigation }) => {
     
     if (formErrors.category) {
       setFormErrors(prev => ({ ...prev, category: null }));
+    }
+
+    // Charger les sous-catégories automatiquement avec cache
+    if (categoryId) {
+      console.log('🏷️ Chargement sous-catégories avec cache pour:', categoryId);
+      try {
+        await loadSubCategories(categoryId);
+        console.log('✅ Sous-catégories chargées avec cache');
+      } catch (error) {
+        console.error('❌ Erreur chargement sous-catégories:', error);
+      }
     }
   };
 
@@ -267,8 +279,6 @@ const NewHomeScreen = ({ navigation }) => {
     }
   };
 
-  // Dans NewHomeScreen.js, modifier la fonction proceedWithRequest
-
   const proceedWithRequest = async (photoUrls) => {
     try {
       console.log('📝 Création de la demande avec', photoUrls.length, 'photos...');
@@ -418,7 +428,41 @@ const NewHomeScreen = ({ navigation }) => {
     console.log('🔄 Formulaire réinitialisé');
   };
 
-  if (loadingCategories) {
+  // ✅ NOUVEAU : Fonction de refresh des catégories
+  const handleRefreshCategories = async () => {
+    try {
+      console.log('🔄 Refresh manuel des catégories...');
+      const result = await refreshCategories();
+      if (result.success) {
+        Alert.alert('✅ Catégories mises à jour', 'Les catégories ont été actualisées avec succès');
+      } else {
+        Alert.alert('❌ Erreur', 'Impossible de mettre à jour les catégories');
+      }
+    } catch (error) {
+      Alert.alert('❌ Erreur', 'Erreur lors de la mise à jour');
+    }
+  };
+
+  // ✅ AFFICHAGE D'ERREUR CATÉGORIES
+  if (categoriesError && !isReady) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={64} color={colors.danger} />
+          <Text style={styles.errorTitle}>Erreur de chargement</Text>
+          <Text style={styles.errorText}>{categoriesError}</Text>
+          <Button
+            title="Réessayer"
+            onPress={handleRefreshCategories}
+            variant="primary"
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ✅ LOADING UNIQUEMENT SI PAS DE CACHE
+  if (categoriesLoading && !isReady) {
     return <Loading fullScreen gradient text="Chargement des catégories..." />;
   }
 
@@ -437,6 +481,14 @@ const NewHomeScreen = ({ navigation }) => {
           <Text style={styles.headerSubtitle}>
             Publiez votre demande et trouvez ce qu'il vous faut
           </Text>
+          
+          {/* ✅ NOUVEAU : Indicateur de cache */}
+          {isFromCache && (
+            <View style={styles.cacheIndicator}>
+              <Ionicons name="flash" size={12} color={colors.white} />
+              <Text style={styles.cacheText}>Mode rapide activé</Text>
+            </View>
+          )}
         </View>
       </LinearGradient>
 
@@ -478,13 +530,13 @@ const NewHomeScreen = ({ navigation }) => {
             helperText="Plus votre description est précise, meilleures seront les réponses"
           />
 
-          {/* Sélecteur de catégories */}
+          {/* ✅ NOUVEAU : Sélecteur de catégories avec cache intelligent */}
           <CategorySelector
             selectedCategory={formData.category}
             selectedSubCategory={formData.subCategory}
             onCategorySelect={handleCategorySelect}
             onSubCategorySelect={handleSubCategorySelect}
-            categories={categories}
+            categories={categories} // ✅ Utilise le cache
             error={formErrors.category || formErrors.subCategory}
           />
 
@@ -544,6 +596,23 @@ const NewHomeScreen = ({ navigation }) => {
             </View>
           )}
 
+          {/* ✅ NOUVEAU : Debug du cache (développement seulement) */}
+          {__DEV__ && (
+            <View style={styles.debugContainer}>
+              <Text style={styles.debugTitle}>🔧 Debug Cache</Text>
+              <Text style={styles.debugText}>
+                Catégories: {categories.length} | Source: {isFromCache ? 'Cache' : 'API'}
+              </Text>
+              <Button
+                title="🔄 Actualiser catégories"
+                variant="outline"
+                size="small"
+                onPress={handleRefreshCategories}
+                style={styles.debugButton}
+              />
+            </View>
+          )}
+
           {/* Espace pour le clavier */}
           <View style={styles.keyboardSpace} />
         </ScrollView>
@@ -583,6 +652,22 @@ const styles = StyleSheet.create({
     color: colors.white,
     opacity: 0.9,
     textAlign: 'center',
+  },
+  // ✅ NOUVEAU : Indicateur de cache
+  cacheIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 12,
+  },
+  cacheText: {
+    fontSize: 12,
+    color: colors.white,
+    marginLeft: 4,
+    fontWeight: '500',
   },
   content: {
     flex: 1,
@@ -627,6 +712,49 @@ const styles = StyleSheet.create({
   },
   keyboardSpace: {
     height: 100,
+  },
+  // ✅ NOUVEAU : Styles d'erreur
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  errorText: {
+    fontSize: 14,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  // ✅ NOUVEAU : Debug styles
+  debugContainer: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: colors.gray[100],
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.gray[300],
+  },
+  debugTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginBottom: 4,
+  },
+  debugText: {
+    fontSize: 11,
+    color: colors.text.secondary,
+    marginBottom: 8,
+  },
+  debugButton: {
+    marginTop: 4,
   },
 });
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -16,19 +16,35 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { useAuth } from '../../context/AuthContext';
+// ✅ NOUVEAU : Utiliser le hook de cache intelligent
+import { useCachedCategories } from '../../hooks/useCachedCategories';
+
 import Button from '../../components/Button';
 import Input from '../../components/Input';
-import CategorySelector from '../../components/CategorySelector';
 import LocationSelector from '../../components/LocationSelector';
 import Loading from '../../components/Loading';
 
 import SellerService from '../../services/sellerService';
-import RequestService from '../../services/requestService';
-
 import colors, { getGradientString } from '../../styles/colors';
 
 const CreateSellerScreen = ({ navigation }) => {
   const { user } = useAuth();
+  
+  // ✅ NOUVEAU : Utiliser le cache intelligent des catégories
+  const {
+    categories,
+    loading: categoriesLoading,
+    error: categoriesError,
+    isFromCache,
+    isReady,
+    getSubCategoriesForCategory,
+    loadSubCategories,
+    refresh: refreshCategories,
+    getStats: getCategoriesStats,
+  } = useCachedCategories({
+    autoLoad: true,
+    loadSubCategories: false,
+  });
   
   // État du formulaire - 🔧 MODIFIÉ : Suppression du serviceRadius
   const [formData, setFormData] = useState({
@@ -41,9 +57,7 @@ const CreateSellerScreen = ({ navigation }) => {
   });
 
   // État de l'interface
-  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [loadingCategories, setLoadingCategories] = useState(true);
   const [formErrors, setFormErrors] = useState({});
   
   // État pour la gestion des spécialités
@@ -51,54 +65,37 @@ const CreateSellerScreen = ({ navigation }) => {
   const [availableSubCategories, setAvailableSubCategories] = useState([]);
   const [selectedSubCategories, setSelectedSubCategories] = useState([]); // Sous-catégories sélectionnées pour la catégorie courante
 
-  // Charger les catégories au démarrage
-  useEffect(() => {
-    loadCategories();
-  }, []);
+  // ✅ NOUVEAU : Debug du cache des catégories
+  React.useEffect(() => {
+    if (isReady) {
+      const stats = getCategoriesStats();
+      console.log('📂 Stats cache catégories CreateSellerScreen:', stats);
+      console.log('📂 Catégories chargées:', categories.length);
+      console.log('📂 Source:', isFromCache ? 'Cache' : 'API');
+    }
+  }, [isReady, isFromCache]);
 
-  // Charger les sous-catégories quand une catégorie est sélectionnée
-  useEffect(() => {
-    if (selectedCategory) {
-      loadSubCategories(selectedCategory);
+  // ✅ AMÉLIORATION : Charger les sous-catégories avec cache intelligent
+  React.useEffect(() => {
+    if (selectedCategory && isReady) {
+      loadSubCategoriesWithCache(selectedCategory);
     } else {
       setAvailableSubCategories([]);
       setSelectedSubCategories([]);
     }
-  }, [selectedCategory]);
+  }, [selectedCategory, isReady]);
 
-  const loadCategories = async () => {
+  // ✅ NOUVELLE FONCTION : Chargement avec cache intelligent
+  const loadSubCategoriesWithCache = async (categoryId) => {
     try {
-      setLoadingCategories(true);
-      console.log('📂 Chargement des catégories pour vendeur...');
+      console.log('🏷️ Chargement sous-catégories avec cache pour:', categoryId);
       
-      const result = await RequestService.getCategories();
+      // D'abord essayer de récupérer depuis le cache du contexte
+      const cachedSubCategories = getSubCategoriesForCategory(categoryId);
       
-      if (result.success) {
-        setCategories(result.data);
-        console.log('✅ Catégories chargées:', result.data.length);
-      } else {
-        console.error('❌ Erreur chargement catégories:', result.error);
-        Alert.alert('Erreur', 'Impossible de charger les catégories');
-      }
-    } catch (error) {
-      console.error('❌ Erreur load categories:', error);
-      Alert.alert('Erreur', 'Erreur lors du chargement');
-    } finally {
-      setLoadingCategories(false);
-    }
-  };
-
-  const loadSubCategories = async (categoryId) => {
-    try {
-      console.log('🏷️ Chargement sous-catégories pour:', categoryId);
-      
-      const response = await fetch(
-        `https://mobile-app-backend-production-5d60.up.railway.app/api/requests/categories/${categoryId}/subcategories`
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        setAvailableSubCategories(data.subCategories);
+      if (cachedSubCategories.length > 0) {
+        console.log('✅ Sous-catégories trouvées en cache:', cachedSubCategories.length);
+        setAvailableSubCategories(cachedSubCategories);
         
         // Récupérer les sous-catégories déjà sélectionnées pour cette catégorie
         const existingSpecialty = formData.specialties.find(s => s.category === categoryId);
@@ -107,15 +104,29 @@ const CreateSellerScreen = ({ navigation }) => {
         } else {
           setSelectedSubCategories([]);
         }
-        
-        console.log('✅ Sous-catégories chargées:', data.subCategories.length);
+        return;
+      }
+      
+      // Sinon charger depuis l'API et mettre en cache
+      console.log('🌐 Chargement depuis API...');
+      await loadSubCategories(categoryId);
+      
+      // Récupérer à nouveau depuis le cache après chargement
+      const newSubCategories = getSubCategoriesForCategory(categoryId);
+      setAvailableSubCategories(newSubCategories);
+      
+      // Récupérer les sous-catégories déjà sélectionnées pour cette catégorie
+      const existingSpecialty = formData.specialties.find(s => s.category === categoryId);
+      if (existingSpecialty) {
+        setSelectedSubCategories(existingSpecialty.subCategories);
       } else {
-        console.error('❌ Erreur chargement sous-catégories');
-        setAvailableSubCategories([]);
         setSelectedSubCategories([]);
       }
+      
+      console.log('✅ Sous-catégories chargées avec cache:', newSubCategories.length);
+      
     } catch (error) {
-      console.error('❌ Erreur réseau sous-catégories:', error);
+      console.error('❌ Erreur chargement sous-catégories avec cache:', error);
       setAvailableSubCategories([]);
       setSelectedSubCategories([]);
     }
@@ -138,8 +149,6 @@ const CreateSellerScreen = ({ navigation }) => {
       setFormErrors(prev => ({ ...prev, location: null }));
     }
   };
-
-  // 🔧 SUPPRIMÉ : handleRadiusChange car non nécessaire pour vendeur
 
   // ✅ NOUVELLE GESTION DES SPÉCIALITÉS
 
@@ -312,7 +321,41 @@ const CreateSellerScreen = ({ navigation }) => {
     return availableSubCategories.find(sub => sub.id === subCategoryId)?.name || subCategoryId;
   };
 
-  if (loadingCategories) {
+  // ✅ NOUVEAU : Fonction de refresh des catégories
+  const handleRefreshCategories = async () => {
+    try {
+      console.log('🔄 Refresh manuel des catégories...');
+      const result = await refreshCategories();
+      if (result.success) {
+        Alert.alert('✅ Catégories mises à jour', 'Les catégories ont été actualisées avec succès');
+      } else {
+        Alert.alert('❌ Erreur', 'Impossible de mettre à jour les catégories');
+      }
+    } catch (error) {
+      Alert.alert('❌ Erreur', 'Erreur lors de la mise à jour');
+    }
+  };
+
+  // ✅ AFFICHAGE D'ERREUR CATÉGORIES
+  if (categoriesError && !isReady) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={64} color={colors.danger} />
+          <Text style={styles.errorTitle}>Erreur de chargement</Text>
+          <Text style={styles.errorText}>{categoriesError}</Text>
+          <Button
+            title="Réessayer"
+            onPress={handleRefreshCategories}
+            variant="primary"
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ✅ LOADING UNIQUEMENT SI PAS DE CACHE
+  if (categoriesLoading && !isReady) {
     return <Loading fullScreen gradient text="Chargement des catégories..." />;
   }
 
@@ -338,6 +381,14 @@ const CreateSellerScreen = ({ navigation }) => {
           <Text style={styles.headerSubtitle}>
             Créez votre profil professionnel
           </Text>
+          
+          {/* ✅ NOUVEAU : Indicateur de cache */}
+          {isFromCache && (
+            <View style={styles.cacheIndicator}>
+              <Ionicons name="flash" size={12} color={colors.white} />
+              <Text style={styles.cacheText}>Mode rapide activé</Text>
+            </View>
+          )}
         </View>
       </LinearGradient>
 
@@ -404,14 +455,14 @@ const CreateSellerScreen = ({ navigation }) => {
             />
           </View>
 
-          {/* ✅ NOUVELLE SECTION SPÉCIALITÉS AMÉLIORÉE */}
+          {/* ✅ NOUVELLE SECTION SPÉCIALITÉS AMÉLIORÉE AVEC CACHE */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Vos spécialités</Text>
             <Text style={styles.sectionSubtitle}>
               Sélectionnez une ou plusieurs catégories, puis choisissez les sous-catégories correspondantes
             </Text>
 
-            {/* Sélection de catégorie */}
+            {/* Sélection de catégorie avec cache */}
             <View style={styles.categorySelection}>
               <Text style={styles.selectionTitle}>1. Choisissez une catégorie :</Text>
               
@@ -441,7 +492,7 @@ const CreateSellerScreen = ({ navigation }) => {
               </ScrollView>
             </View>
 
-            {/* Sélection de sous-catégories */}
+            {/* Sélection de sous-catégories avec cache */}
             {selectedCategory && availableSubCategories.length > 0 && (
               <View style={styles.subCategorySelection}>
                 <Text style={styles.selectionTitle}>
@@ -542,6 +593,26 @@ const CreateSellerScreen = ({ navigation }) => {
             variant="secondary"
           />
 
+          {/* ✅ NOUVEAU : Debug du cache (développement seulement) */}
+          {__DEV__ && (
+            <View style={styles.debugContainer}>
+              <Text style={styles.debugTitle}>🔧 Debug Cache</Text>
+              <Text style={styles.debugText}>
+                Catégories: {categories.length} | Source: {isFromCache ? 'Cache' : 'API'}
+              </Text>
+              <Text style={styles.debugText}>
+                Sous-catégories chargées: {Object.keys(getSubCategoriesForCategory).length}
+              </Text>
+              <Button
+                title="🔄 Actualiser catégories"
+                variant="outline"
+                size="small"
+                onPress={handleRefreshCategories}
+                style={styles.debugButton}
+              />
+            </View>
+          )}
+
           {/* Espace pour le clavier */}
           <View style={styles.keyboardSpace} />
         </ScrollView>
@@ -585,6 +656,22 @@ const styles = StyleSheet.create({
     opacity: 0.9,
     textAlign: 'center',
   },
+  // ✅ NOUVEAU : Indicateur de cache
+  cacheIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 12,
+  },
+  cacheText: {
+    fontSize: 12,
+    color: colors.white,
+    marginLeft: 4,
+    fontWeight: '500',
+  },
   content: {
     flex: 1,
     marginTop: -15,
@@ -615,7 +702,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   
-  // ✅ NOUVEAUX STYLES POUR SPÉCIALITÉS
+  // ✅ STYLES POUR SPÉCIALITÉS
   categorySelection: {
     marginBottom: 24,
   },
@@ -769,6 +856,37 @@ const styles = StyleSheet.create({
   },
   keyboardSpace: {
     height: 100,
+  },
+  // ✅ NOUVEAU : Styles d'erreur
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  // ✅ NOUVEAU : Debug styles
+  debugContainer: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: colors.gray[100],
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.gray[300],
+  },
+  debugTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginBottom: 4,
+  },
+  debugText: {
+    fontSize: 11,
+    color: colors.text.secondary,
+    marginBottom: 8,
+  },
+  debugButton: {
+    marginTop: 4,
   },
 });
 

@@ -8,7 +8,8 @@ import { Alert, Platform } from 'react-native';
 
 // Context
 import { AuthProvider } from './src/context/AuthContext';
-import { NotificationProvider } from './src/context/NotificationContext'; // ✅ NOUVEAU
+import { NotificationProvider } from './src/context/NotificationContext';
+import { CategoriesProvider } from './src/context/CategoriesContext'; // ✅ NOUVEAU
 
 // Navigation
 import AuthNavigator from './src/navigation/AuthNavigator';
@@ -194,19 +195,22 @@ const AppNavigator = () => {
   );
 };
 
-// Composant racine de l'application - ✅ MODIFIÉ AVEC NOTIFICATIONPROVIDER
+// ✅ COMPOSANT RACINE MODIFIÉ AVEC CATEGORIESPROVIDER
 export default function App() {
   console.log('📱 Démarrage de l\'application React Native...');
   console.log('🔗 Deep link schemes configurés: myapp://, mobileapp://');
   console.log('🤖 Plateforme détectée:', Platform.OS);
   console.log('⏰ Timestamp démarrage:', new Date().toISOString());
   console.log('🔔 Notifications temps réel activées');
+  console.log('📂 Cache des catégories intelligent activé'); // ✅ NOUVEAU
 
   return (
     <AuthProvider>
-      <NotificationProvider>
-        <AppNavigator />
-      </NotificationProvider>
+      <CategoriesProvider>
+        <NotificationProvider>
+          <AppNavigator />
+        </NotificationProvider>
+      </CategoriesProvider>
     </AuthProvider>
   );
 }
