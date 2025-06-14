@@ -367,6 +367,71 @@ router.get('/info/:photoId', authenticateToken, async (req, res) => {
     });
   }
 });
+// ✅ AJOUTEZ CETTE ROUTE DANS votre routes/photos.js
+// À placer APRÈS la route /info/:photoId et AVANT le module.exports
+
+/**
+ * @route   GET /api/photos/:photoFilename
+ * @desc    Rediriger vers l'URL Cloudinary de la photo
+ * @access  Public
+ */
+router.get('/:photoFilename', async (req, res) => {
+    try {
+      const { photoFilename } = req.params;
+      
+      console.log('🖼️ Demande de photo:', photoFilename);
+      
+      // Extraire le public_id de Cloudinary depuis le nom de fichier
+      // Format: photo_1749353955301_02121848195bfa064ce0e222be044579.jpg
+      let publicId = photoFilename;
+      
+      // Enlever l'extension si présente
+      if (publicId.includes('.')) {
+        publicId = publicId.split('.')[0];
+      }
+      
+      console.log('🆔 Public ID Cloudinary:', publicId);
+      
+      try {
+        // Vérifier que la photo existe sur Cloudinary
+        const cloudinaryInfo = await cloudinary.api.resource(publicId);
+        
+        console.log('✅ Photo trouvée sur Cloudinary:', cloudinaryInfo.secure_url);
+        
+        // Rediriger vers l'URL Cloudinary
+        res.redirect(301, cloudinaryInfo.secure_url);
+        
+      } catch (cloudinaryError) {
+        console.error('❌ Photo non trouvée sur Cloudinary:', publicId);
+        console.error('❌ Erreur Cloudinary:', cloudinaryError.message);
+        
+        // Essayer de construire l'URL directement
+        const cloudName = process.env.CLOUDINARY_CLOUD_NAME || 'drch6mjsd';
+        const directUrl = `https://res.cloudinary.com/${cloudName}/image/upload/${publicId}`;
+        
+        console.log('🔄 Tentative URL directe:', directUrl);
+        
+        // Rediriger vers l'URL construite
+        res.redirect(301, directUrl);
+      }
+      
+    } catch (error) {
+      console.error('❌ Erreur récupération photo:', error);
+      
+      // En dernier recours, essayer une URL directe
+      const { photoFilename } = req.params;
+      let publicId = photoFilename;
+      if (publicId.includes('.')) {
+        publicId = publicId.split('.')[0];
+      }
+      
+      const cloudName = process.env.CLOUDINARY_CLOUD_NAME || 'drch6mjsd';
+      const fallbackUrl = `https://res.cloudinary.com/${cloudName}/image/upload/${publicId}`;
+      
+      console.log('🆘 URL de secours:', fallbackUrl);
+      res.redirect(301, fallbackUrl);
+    }
+  });
 
 console.log('✅ Routes photos avec Cloudinary chargées');
 
