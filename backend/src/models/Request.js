@@ -181,22 +181,20 @@ requestSchema.methods.incrementResponse = function() {
   return this.updateOne({ $inc: { responseCount: 1 } });
 };
 
-// Méthode statique pour trouver des demandes par proximité
 requestSchema.statics.findNearby = function(longitude, latitude, maxDistance = 10000) {
-  return this.find({
-    location: {
-      $near: {
-        $geometry: {
-          type: 'Point',
-          coordinates: [longitude, latitude]
-        },
-        $maxDistance: maxDistance // en mètres
-      }
-    },
-    status: 'active',
-    expiresAt: { $gt: new Date() }
-  });
-};
+    return this.find({
+      location: {
+        $geoWithin: {
+          $centerSphere: [
+            [longitude, latitude], 
+            maxDistance / 6378100 // Convertir mètres en radians
+          ]
+        }
+      },
+      status: 'active',
+      expiresAt: { $gt: new Date() }
+    });
+  };
 
 // Middleware pour nettoyer les données avant sauvegarde
 requestSchema.pre('save', function(next) {

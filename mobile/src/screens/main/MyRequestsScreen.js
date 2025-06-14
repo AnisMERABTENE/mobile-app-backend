@@ -124,21 +124,99 @@ const MyRequestsScreen = ({ navigation }) => {
   };
 
   // ✅ NOUVEAU : Charger les données vendeur (demandes reçues)
+  // ✅ NOUVEAU : Charger les données vendeur (demandes reçues) - VERSION ADAPTÉE
   const loadSellerData = async () => {
     try {
-      console.log('🛍️ Chargement des demandes reçues en tant que vendeur...');
+      console.log('👨‍💼 Chargement des demandes reçues en tant que vendeur...');
       
-      // TODO: Créer cette méthode dans RequestService ou SellerService
-      // Pour l'instant, on simule avec les demandes existantes
-      const result = await RequestService.getMyRequests(); // Temporaire
-      
-      if (result.success) {
-        // Temporaire : filtrer ou adapter les données
-        setReceivedRequests(result.data.requests);
-        console.log('✅ Demandes vendeur chargées:', result.data.requests.length);
+      // 1. Récupérer le profil vendeur
+      const profileResult = await SellerService.getMyProfile();
+      if (!profileResult.success) {
+        console.warn('⚠️ Aucun profil vendeur trouvé');
+        setReceivedRequests([]);
+        setSellerStats(null);
+        return;
       }
-      
-      // Charger les stats vendeur
+
+      const sellerProfile = profileResult.data;
+      console.log('✅ Profil vendeur récupéré:', sellerProfile.businessName);
+      console.log('📍 Localisation vendeur:', sellerProfile.location.city);
+      console.log('🏷️ Spécialités:', sellerProfile.specialties.length);
+
+      // 2. Récupérer les demandes reçues pour chaque spécialité
+      const allRequests = [];
+      const processedRequestIds = new Set(); // Éviter les doublons
+
+      const [longitude, latitude] = sellerProfile.location.coordinates;
+      const maxDistance = 25; // 25km par défaut
+
+      for (const specialty of sellerProfile.specialties) {
+        for (const subCategory of specialty.subCategories) {
+          try {
+            console.log(`🔍 Recherche demandes: ${specialty.category} > ${subCategory}`);
+
+            // Utiliser ton endpoint de recherche par proximité
+            const searchResult = await RequestService.searchNearby(
+              longitude,
+              latitude,
+              maxDistance * 1000, // Convertir km en mètres
+              specialty.category,
+              1 // page
+            );
+
+            if (searchResult.success) {
+              // Filtrer par sous-catégorie exacte et éviter les doublons
+              const filteredRequests = (searchResult.data.requests || []).filter(request => 
+                request.subCategory === subCategory && 
+                !processedRequestIds.has(request._id) &&
+                request.status === 'active' // Seulement les demandes actives
+              );
+
+              filteredRequests.forEach(request => {
+                processedRequestIds.add(request._id);
+                
+                // Calculer la distance du vendeur
+                const distance = calculateDistance(
+                  latitude, longitude,
+                  request.location.coordinates[1], 
+                  request.location.coordinates[0]
+                );
+
+                allRequests.push({
+                  ...request,
+                  // Ajouter des métadonnées pour le vendeur
+                  matchingSpecialty: {
+                    category: specialty.category,
+                    subCategory: subCategory
+                  },
+                  distanceFromSeller: Math.round(distance * 100) / 100, // Arrondir à 2 décimales
+                  matchScore: calculateMatchScore(request, specialty, distance)
+                });
+              });
+
+              console.log(`✅ ${filteredRequests.length} demandes trouvées pour ${specialty.category} > ${subCategory}`);
+            }
+
+          } catch (subError) {
+            console.warn(`⚠️ Erreur recherche ${specialty.category} > ${subCategory}:`, subError.message);
+          }
+        }
+      }
+
+      // 3. Trier par score de correspondance et date
+      allRequests.sort((a, b) => {
+        // D'abord par score de correspondance (décroissant)
+        if (b.matchScore !== a.matchScore) {
+          return b.matchScore - a.matchScore;
+        }
+        // Puis par date (plus récent en premier)
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
+
+      console.log(`✅ ${allRequests.length} demandes reçues trouvées au total`);
+      setReceivedRequests(allRequests);
+
+      // 4. Charger les stats vendeur
       const sellerStatsResult = await SellerService.getMyStats();
       if (sellerStatsResult.success) {
         setSellerStats(sellerStatsResult.data);
@@ -147,13 +225,62 @@ const MyRequestsScreen = ({ navigation }) => {
       
     } catch (error) {
       console.error('❌ Erreur chargement données vendeur:', error);
+      Alert.alert('Erreur', 'Impossible de charger les demandes reçues');
+      setReceivedRequests([]);
+      setSellerStats(null);
     }
   };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
+  // 🔧 Fonction utilitaire : Calculer la distance entre deux points
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Rayon de la Terre en km
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  const deg2rad = (deg) => {
+    return deg * (Math.PI/180);
+  };
+
+  // 🔧 Fonction utilitaire : Calculer le score de correspondance
+  const calculateMatchScore = (request, specialty, distance) => {
+    let score = 100; // Score de base
+
+    // 1. Score de distance (plus proche = meilleur)
+    const distanceScore = Math.max(0, 50 - (distance * 2)); // -2 points par km
+    score += distanceScore;
+
+    // 2. Score de correspondance exacte catégorie/sous-catégorie
+    score += 30; // Bonus car on a déjà filtré sur la correspondance exacte
+
+    // 3. Score de priorité de la demande
+    switch (request.priority) {
+      case 'urgent':
+        score += 20;
+        break;
+      case 'high':
+        score += 15;
+        break;
+      case 'medium':
+        score += 10;
+        break;
+      case 'low':
+        score += 5;
+        break;
+    }
+
+    // 4. Score basé sur l'âge de la demande (plus récent = meilleur)
+    const hoursOld = (Date.now() - new Date(request.createdAt)) / (1000 * 60 * 60);
+    const freshnessScore = Math.max(0, 10 - hoursOld); // -1 point par heure
+    score += freshnessScore;
+
+    return Math.round(score);
   };
 
   const handleRequestPress = (request) => {
@@ -198,7 +325,13 @@ const MyRequestsScreen = ({ navigation }) => {
   const getCurrentStats = () => {
     return viewMode === 'client' ? stats : sellerStats;
   };
-
+  // ✅ AJOUTER CETTE FONCTION MANQUANTE
+const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+  
   // ✅ FONCTION PHOTO EXISTANTE (inchangée)
   const getPhotoUri = (photo) => {
     if (!photo) return null;
