@@ -1,66 +1,39 @@
 import { apiRequest } from './api';
 
 /**
- * Service pour les vendeurs
- * Gère toutes les interactions avec l'API vendeur
+ * Service de gestion des vendeurs
+ * Gère toutes les interactions avec l'API vendeur pour l'édition du profil
  */
 class SellerService {
-  
-  /**
-   * Vérifier le statut de l'API vendeur
-   */
-  async ping() {
-    try {
-      console.log('🔔 Test API vendeur...');
-      
-      const result = await apiRequest.get('/sellers/ping');
 
-      if (result.success) {
-        console.log('✅ API vendeur accessible');
-        return {
-          success: true,
-          data: result.data,
-        };
-      } else {
-        console.error('❌ API vendeur inaccessible:', result.error);
-        return {
-          success: false,
-          error: result.error || 'API vendeur inaccessible',
-        };
-      }
-    } catch (error) {
-      console.error('❌ Erreur ping vendeur:', error);
-      return {
-        success: false,
-        error: 'Impossible de contacter le service vendeur',
-      };
-    }
-  }
+  // ============================================================
+  // 📋 GESTION DU PROFIL VENDEUR
+  // ============================================================
 
   /**
-   * Récupérer mon profil vendeur
+   * Récupérer le profil vendeur connecté
    */
-  async getMyProfile() {
+  async getProfile() {
     try {
-      console.log('👤 Récupération profil vendeur...');
+      console.log('👤 Récupération du profil vendeur...');
       
-      const result = await apiRequest.get('/sellers/my/profile');
+      const result = await apiRequest.get('/seller/profile');
 
       if (result.success) {
         console.log('✅ Profil vendeur récupéré');
         return {
           success: true,
-          data: result.data.seller,
+          data: result.data,
         };
       } else {
-        console.log('ℹ️ Pas de profil vendeur trouvé');
+        console.error('❌ Échec récupération profil vendeur:', result.error);
         return {
           success: false,
-          error: result.error || 'Aucun profil vendeur',
+          error: result.error || 'Erreur lors de la récupération du profil vendeur',
         };
       }
     } catch (error) {
-      console.error('❌ Erreur récupération profil vendeur:', error);
+      console.error('❌ Erreur service profil vendeur:', error);
       return {
         success: false,
         error: 'Impossible de récupérer le profil vendeur',
@@ -69,29 +42,161 @@ class SellerService {
   }
 
   /**
-   * Créer un profil vendeur
+   * Mettre à jour les informations générales du profil vendeur
+   */
+  async updateGeneralInfo(updateData) {
+    try {
+      console.log('✏️ Mise à jour des informations générales...');
+      
+      const result = await apiRequest.put('/seller/profile', updateData);
+
+      if (result.success) {
+        console.log('✅ Informations générales mises à jour');
+        return {
+          success: true,
+          data: result.data,
+        };
+      } else {
+        console.error('❌ Échec mise à jour informations:', result.error);
+        return {
+          success: false,
+          error: result.error || 'Erreur lors de la mise à jour',
+        };
+      }
+    } catch (error) {
+      console.error('❌ Erreur service update informations:', error);
+      return {
+        success: false,
+        error: 'Impossible de mettre à jour les informations',
+      };
+    }
+  }
+
+  // ============================================================
+  // 🏷️ GESTION DES SPÉCIALITÉS (CATÉGORIES/SOUS-CATÉGORIES)
+  // ============================================================
+
+  /**
+   * Ajouter une nouvelle spécialité
+   */
+  async addSpecialty(specialtyData) {
+    try {
+      console.log('➕ Ajout d\'une nouvelle spécialité:', specialtyData.category);
+      
+      const result = await apiRequest.post('/seller/specialties', specialtyData);
+
+      if (result.success) {
+        console.log('✅ Spécialité ajoutée avec succès');
+        return {
+          success: true,
+          data: result.data,
+        };
+      } else {
+        console.error('❌ Échec ajout spécialité:', result.error);
+        return {
+          success: false,
+          error: result.error || 'Erreur lors de l\'ajout de la spécialité',
+        };
+      }
+    } catch (error) {
+      console.error('❌ Erreur service ajout spécialité:', error);
+      return {
+        success: false,
+        error: 'Impossible d\'ajouter la spécialité',
+      };
+    }
+  }
+
+  /**
+   * Modifier une spécialité existante
+   */
+  async updateSpecialty(specialtyId, specialtyData) {
+    try {
+      console.log('✏️ Modification de la spécialité:', specialtyId);
+      
+      const result = await apiRequest.put(`/seller/specialties/${specialtyId}`, specialtyData);
+
+      if (result.success) {
+        console.log('✅ Spécialité modifiée avec succès');
+        return {
+          success: true,
+          data: result.data,
+        };
+      } else {
+        console.error('❌ Échec modification spécialité:', result.error);
+        return {
+          success: false,
+          error: result.error || 'Erreur lors de la modification de la spécialité',
+        };
+      }
+    } catch (error) {
+      console.error('❌ Erreur service modification spécialité:', error);
+      return {
+        success: false,
+        error: 'Impossible de modifier la spécialité',
+      };
+    }
+  }
+
+  /**
+   * Supprimer une spécialité
+   */
+  async removeSpecialty(specialtyId) {
+    try {
+      console.log('🗑️ Suppression de la spécialité:', specialtyId);
+      
+      const result = await apiRequest.delete(`/seller/specialties/${specialtyId}`);
+
+      if (result.success) {
+        console.log('✅ Spécialité supprimée avec succès');
+        return {
+          success: true,
+          data: result.data,
+        };
+      } else {
+        console.error('❌ Échec suppression spécialité:', result.error);
+        return {
+          success: false,
+          error: result.error || 'Erreur lors de la suppression de la spécialité',
+        };
+      }
+    } catch (error) {
+      console.error('❌ Erreur service suppression spécialité:', error);
+      return {
+        success: false,
+        error: 'Impossible de supprimer la spécialité',
+      };
+    }
+  }
+
+  // ============================================================
+  // 🏪 GESTION DU MAGASIN (MÉTHODES EXISTANTES PRÉSERVÉES)
+  // ============================================================
+
+  /**
+   * Créer un nouveau profil vendeur
    */
   async createProfile(profileData) {
     try {
-      console.log('📝 Création profil vendeur...');
+      console.log('🆕 Création d\'un nouveau profil vendeur...');
       
-      const result = await apiRequest.post('/sellers/profile', profileData);
+      const result = await apiRequest.post('/sellers/create', profileData);
 
       if (result.success) {
-        console.log('✅ Profil vendeur créé:', result.data.seller.businessName);
+        console.log('✅ Profil vendeur créé avec succès');
         return {
           success: true,
-          data: result.data.seller,
+          data: result.data,
         };
       } else {
         console.error('❌ Échec création profil vendeur:', result.error);
         return {
           success: false,
-          error: result.error || 'Erreur lors de la création du profil',
+          error: result.error || 'Erreur lors de la création du profil vendeur',
         };
       }
     } catch (error) {
-      console.error('❌ Erreur service createProfile:', error);
+      console.error('❌ Erreur service création profil vendeur:', error);
       return {
         success: false,
         error: 'Impossible de créer le profil vendeur',
@@ -100,144 +205,28 @@ class SellerService {
   }
 
   /**
-   * Mettre à jour mon profil vendeur
+   * Rechercher des vendeurs par proximité
    */
-  async updateProfile(updateData) {
+  async searchNearby(searchParams) {
     try {
-      console.log('✏️ Mise à jour profil vendeur...');
+      console.log('🔍 Recherche de vendeurs à proximité...');
       
-      const result = await apiRequest.put('/sellers/my/profile', updateData);
+      const { longitude, latitude, maxDistance, category, subCategory, page, limit } = searchParams;
+      
+      const queryParams = new URLSearchParams({
+        longitude: longitude.toString(),
+        latitude: latitude.toString(),
+        maxDistance: maxDistance.toString(),
+        category,
+        ...(subCategory && { subCategory }),
+        page: page?.toString() || '1',
+        limit: limit?.toString() || '20'
+      });
+
+      const result = await apiRequest.get(`/sellers/search?${queryParams}`);
 
       if (result.success) {
-        console.log('✅ Profil vendeur mis à jour');
-        return {
-          success: true,
-          data: result.data.seller,
-        };
-      } else {
-        console.error('❌ Échec mise à jour profil vendeur:', result.error);
-        return {
-          success: false,
-          error: result.error || 'Erreur lors de la mise à jour',
-        };
-      }
-    } catch (error) {
-      console.error('❌ Erreur service updateProfile:', error);
-      return {
-        success: false,
-        error: 'Impossible de mettre à jour le profil',
-      };
-    }
-  }
-
-  /**
-   * Supprimer mon profil vendeur
-   */
-  async deleteProfile() {
-    try {
-      console.log('🗑️ Suppression profil vendeur...');
-      
-      const result = await apiRequest.delete('/sellers/my/profile');
-
-      if (result.success) {
-        console.log('✅ Profil vendeur supprimé');
-        return {
-          success: true,
-        };
-      } else {
-        console.error('❌ Échec suppression profil vendeur:', result.error);
-        return {
-          success: false,
-          error: result.error || 'Erreur lors de la suppression',
-        };
-      }
-    } catch (error) {
-      console.error('❌ Erreur service deleteProfile:', error);
-      return {
-        success: false,
-        error: 'Impossible de supprimer le profil',
-      };
-    }
-  }
-
-  /**
-   * Changer le statut de disponibilité
-   */
-  async toggleAvailability() {
-    try {
-      console.log('🔄 Changement disponibilité vendeur...');
-      
-      const result = await apiRequest.patch('/sellers/my/availability');
-
-      if (result.success) {
-        console.log('✅ Disponibilité changée:', result.data.isAvailable ? 'Disponible' : 'Indisponible');
-        return {
-          success: true,
-          data: result.data,
-        };
-      } else {
-        console.error('❌ Échec changement disponibilité:', result.error);
-        return {
-          success: false,
-          error: result.error || 'Erreur lors du changement de disponibilité',
-        };
-      }
-    } catch (error) {
-      console.error('❌ Erreur service toggleAvailability:', error);
-      return {
-        success: false,
-        error: 'Impossible de changer la disponibilité',
-      };
-    }
-  }
-
-  /**
-   * Récupérer mes statistiques vendeur
-   */
-  async getMyStats() {
-    try {
-      console.log('📊 Récupération stats vendeur...');
-      
-      const result = await apiRequest.get('/sellers/my/stats');
-
-      if (result.success) {
-        console.log('✅ Stats vendeur récupérées');
-        return {
-          success: true,
-          data: result.data.stats,
-        };
-      } else {
-        console.error('❌ Échec récupération stats:', result.error);
-        return {
-          success: false,
-          error: result.error || 'Erreur lors de la récupération des statistiques',
-        };
-      }
-    } catch (error) {
-      console.error('❌ Erreur service getMyStats:', error);
-      return {
-        success: false,
-        error: 'Impossible de récupérer les statistiques',
-      };
-    }
-  }
-
-  /**
-   * Rechercher des vendeurs par proximité et spécialité
-   */
-  async searchSellers(longitude, latitude, maxDistance = 10, category, subCategory = null, page = 1) {
-    try {
-      console.log('🔍 Recherche vendeurs...');
-      
-      let url = `/sellers/search?longitude=${longitude}&latitude=${latitude}&maxDistance=${maxDistance}&category=${category}&page=${page}`;
-      if (subCategory) {
-        url += `&subCategory=${subCategory}`;
-      }
-      
-      const result = await apiRequest.get(url);
-
-      if (result.success) {
-        console.log('✅ Vendeurs trouvés:', result.data.sellers.length);
+        console.log('✅ Vendeurs trouvés:', result.data.sellers?.length || 0);
         return {
           success: true,
           data: result.data,
@@ -250,10 +239,10 @@ class SellerService {
         };
       }
     } catch (error) {
-      console.error('❌ Erreur service searchSellers:', error);
+      console.error('❌ Erreur service recherche vendeurs:', error);
       return {
         success: false,
-        error: 'Impossible d\'effectuer la recherche',
+        error: 'Impossible de rechercher des vendeurs',
       };
     }
   }
@@ -261,9 +250,9 @@ class SellerService {
   /**
    * Récupérer un vendeur par ID
    */
-  async getSellerById(sellerId) {
+  async getById(sellerId) {
     try {
-      console.log('👁️ Récupération vendeur:', sellerId);
+      console.log('👁️ Récupération du vendeur:', sellerId);
       
       const result = await apiRequest.get(`/sellers/${sellerId}`);
 
@@ -271,7 +260,7 @@ class SellerService {
         console.log('✅ Vendeur récupéré');
         return {
           success: true,
-          data: result.data.seller,
+          data: result.data,
         };
       } else {
         console.error('❌ Échec récupération vendeur:', result.error);
@@ -281,7 +270,7 @@ class SellerService {
         };
       }
     } catch (error) {
-      console.error('❌ Erreur service getSellerById:', error);
+      console.error('❌ Erreur service récupération vendeur:', error);
       return {
         success: false,
         error: 'Impossible de récupérer le vendeur',
@@ -290,91 +279,211 @@ class SellerService {
   }
 
   /**
-   * Mettre à jour les paramètres de notification
+   * Basculer la disponibilité du vendeur
    */
-  async updateNotificationSettings(settings) {
+  async toggleAvailability() {
     try {
-      console.log('🔔 Mise à jour notifications vendeur...');
+      console.log('🔄 Changement de disponibilité...');
       
-      const result = await apiRequest.put('/sellers/my/notifications', {
-        notificationSettings: settings
-      });
+      const result = await apiRequest.post('/sellers/availability');
 
       if (result.success) {
-        console.log('✅ Notifications mises à jour');
+        console.log('✅ Disponibilité changée');
         return {
           success: true,
-          data: result.data.notificationSettings,
+          data: result.data,
         };
       } else {
-        console.error('❌ Échec mise à jour notifications:', result.error);
+        console.error('❌ Échec changement disponibilité:', result.error);
         return {
           success: false,
-          error: result.error || 'Erreur lors de la mise à jour des notifications',
+          error: result.error || 'Erreur lors du changement de disponibilité',
         };
       }
     } catch (error) {
-      console.error('❌ Erreur service updateNotificationSettings:', error);
+      console.error('❌ Erreur service disponibilité:', error);
       return {
         success: false,
-        error: 'Impossible de mettre à jour les notifications',
+        error: 'Impossible de changer la disponibilité',
       };
     }
   }
 
   /**
-   * Valider les données de profil vendeur côté client
+   * Récupérer les statistiques du vendeur
    */
-  validateProfileData(data) {
-    const errors = {};
+  async getStats() {
+    try {
+      console.log('📊 Récupération des statistiques vendeur...');
+      
+      const result = await apiRequest.get('/sellers/stats');
 
-    // Nom d'entreprise
-    if (!data.businessName || data.businessName.trim().length < 2) {
-      errors.businessName = 'Le nom de l\'entreprise doit contenir au moins 2 caractères';
+      if (result.success) {
+        console.log('✅ Statistiques récupérées');
+        return {
+          success: true,
+          data: result.data,
+        };
+      } else {
+        console.error('❌ Échec récupération statistiques:', result.error);
+        return {
+          success: false,
+          error: result.error || 'Erreur lors de la récupération des statistiques',
+        };
+      }
+    } catch (error) {
+      console.error('❌ Erreur service statistiques:', error);
+      return {
+        success: false,
+        error: 'Impossible de récupérer les statistiques',
+      };
+    }
+  }
+
+  // ============================================================
+  // 🧪 UTILITAIRES ET TESTS
+  // ============================================================
+
+  /**
+   * Valider les données d'une spécialité
+   */
+  validateSpecialtyData(specialtyData) {
+    const { category, subCategories } = specialtyData;
+
+    if (!category || typeof category !== 'string' || category.trim().length === 0) {
+      return {
+        isValid: false,
+        error: 'La catégorie est requise'
+      };
     }
 
-    // Description
-    if (!data.description || data.description.trim().length < 10) {
-      errors.description = 'La description doit contenir au moins 10 caractères';
+    if (!subCategories || !Array.isArray(subCategories) || subCategories.length === 0) {
+      return {
+        isValid: false,
+        error: 'Au moins une sous-catégorie est requise'
+      };
     }
 
-    // Téléphone
-    if (!data.phone || !/^[0-9+\-\s().]+$/.test(data.phone)) {
-      errors.phone = 'Format de téléphone invalide';
-    }
-
-    // Localisation
-    if (!data.location || !data.location.coordinates || data.location.coordinates.length !== 2) {
-      errors.location = 'Localisation requise';
-    }
-
-    // Rayon de service
-    if (!data.serviceRadius || data.serviceRadius < 1 || data.serviceRadius > 100) {
-      errors.serviceRadius = 'Le rayon doit être entre 1 et 100 km';
-    }
-
-    // Spécialités
-    if (!data.specialties || data.specialties.length === 0) {
-      errors.specialties = 'Au moins une spécialité est requise';
+    for (const subCategory of subCategories) {
+      if (!subCategory || typeof subCategory !== 'string' || subCategory.trim().length === 0) {
+        return {
+          isValid: false,
+          error: 'Toutes les sous-catégories doivent être valides'
+        };
+      }
     }
 
     return {
-      isValid: Object.keys(errors).length === 0,
+      isValid: true
+    };
+  }
+
+  /**
+   * Valider les données du profil général
+   */
+  validateGeneralInfoData(profileData) {
+    const errors = [];
+
+    if (profileData.businessName !== undefined) {
+      if (!profileData.businessName || profileData.businessName.trim().length < 2) {
+        errors.push('Le nom de l\'entreprise doit contenir au moins 2 caractères');
+      }
+      if (profileData.businessName.trim().length > 100) {
+        errors.push('Le nom de l\'entreprise ne peut pas dépasser 100 caractères');
+      }
+    }
+
+    if (profileData.description !== undefined) {
+      if (!profileData.description || profileData.description.trim().length < 10) {
+        errors.push('La description doit contenir au moins 10 caractères');
+      }
+      if (profileData.description.trim().length > 500) {
+        errors.push('La description ne peut pas dépasser 500 caractères');
+      }
+    }
+
+    if (profileData.phone !== undefined) {
+      if (!profileData.phone || profileData.phone.trim().length < 10) {
+        errors.push('Le numéro de téléphone doit contenir au moins 10 caractères');
+      }
+    }
+
+    if (profileData.location !== undefined && profileData.location.coordinates) {
+      const { coordinates } = profileData.location;
+      if (!Array.isArray(coordinates) || coordinates.length !== 2) {
+        errors.push('Les coordonnées de localisation sont invalides');
+      }
+      const [longitude, latitude] = coordinates;
+      if (typeof longitude !== 'number' || typeof latitude !== 'number') {
+        errors.push('Les coordonnées doivent être des nombres');
+      }
+      if (longitude < -180 || longitude > 180 || latitude < -90 || latitude > 90) {
+        errors.push('Les coordonnées sont hors des limites géographiques');
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
       errors
     };
   }
 
   /**
-   * Formater les données pour l'envoi à l'API
+   * Tester la connexion au service vendeur
    */
-  formatProfileData(data) {
+  async testConnection() {
+    try {
+      console.log('🧪 Test de connexion au service vendeur...');
+      
+      const result = await apiRequest.get('/sellers/ping');
+
+      if (result.success) {
+        console.log('✅ Service vendeur accessible');
+        return {
+          success: true,
+          data: result.data,
+        };
+      } else {
+        console.error('❌ Service vendeur non accessible:', result.error);
+        return {
+          success: false,
+          error: result.error || 'Service non accessible',
+        };
+      }
+    } catch (error) {
+      console.error('❌ Erreur test connexion service vendeur:', error);
+      return {
+        success: false,
+        error: 'Erreur de connexion au service vendeur',
+      };
+    }
+  }
+
+  /**
+   * Obtenir la configuration du service
+   */
+  getConfig() {
     return {
-      businessName: data.businessName?.trim(),
-      description: data.description?.trim(),
-      phone: data.phone?.trim(),
-      location: data.location,
-      serviceRadius: parseInt(data.serviceRadius),
-      specialties: data.specialties || []
+      endpoints: {
+        profile: '/seller/profile',
+        specialties: '/seller/specialties',
+        search: '/sellers/search',
+        stats: '/sellers/stats',
+        availability: '/sellers/availability'
+      },
+      validation: {
+        businessName: { min: 2, max: 100 },
+        description: { min: 10, max: 500 },
+        phone: { min: 10, max: 20 },
+        specialties: { min: 1 }
+      },
+      features: {
+        editProfile: true,
+        manageSpecialties: true,
+        search: true,
+        statistics: true,
+        availability: true
+      }
     };
   }
 }

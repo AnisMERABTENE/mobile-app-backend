@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-// Screens
+// Screens principales
 import NewHomeScreen from '../screens/main/NewHomeScreen';
 import MyRequestsScreen from '../screens/main/MyRequestsScreen';
 import HomeScreen from '../screens/main/HomeScreen'; // Profil
 import CreateSellerScreen from '../screens/main/CreateSellerScreen';
-import RequestDetailScreen from '../screens/main/RequestDetailScreen'; // ✅ AJOUTÉ
+import RequestDetailScreen from '../screens/main/RequestDetailScreen';
+
+// ✅ NOUVEAUX : Écrans vendeur
+import EditSellerProfileScreen from '../screens/seller/EditSellerProfileScreen';
+import AddSpecialtyScreen from '../screens/seller/AddSpecialtyScreen';
 
 // Components
 import TabNavigator from '../components/TabNavigator';
@@ -16,7 +20,7 @@ const Stack = createNativeStackNavigator();
 const MainNavigator = () => {
   const [currentTab, setCurrentTab] = useState('newRequest');
 
-  // ✅ CORRECTION : Fonction simple pour passer la navigation
+  // Fonction simple pour passer la navigation
   const createScreenWithNavigation = (ScreenComponent) => {
     return ({ navigation }) => (
       <ScreenComponent navigation={navigation} />
@@ -34,6 +38,9 @@ const MainNavigator = () => {
           navigate: (screenName) => {
             if (screenName === 'CreateSellerProfile') {
               navigation.navigate('CreateSellerProfile');
+            } else if (screenName === 'EditSellerProfile') {
+              // ✅ NOUVEAU : Navigation vers édition profil vendeur
+              navigation.navigate('EditSellerProfile');
             }
           }
         }} />;
@@ -42,7 +49,7 @@ const MainNavigator = () => {
     }
   };
 
-  // ✅ CORRECTION : Structure simplifiée qui fonctionne
+  // Structure simplifiée qui fonctionne
   const TabScreen = ({ navigation }) => (
     <TabNavigator currentTab={currentTab} onTabChange={setCurrentTab}>
       {renderCurrentScreen({ navigation })}
@@ -71,6 +78,40 @@ const MainNavigator = () => {
       <Stack.Screen 
         name="CreateSellerProfile" 
         component={CreateSellerScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+        }}
+      />
+
+      {/* ✅ NOUVEAUX ÉCRANS VENDEUR */}
+      
+      {/* Écran d'édition du profil vendeur */}
+      <Stack.Screen 
+        name="EditSellerProfile" 
+        component={EditSellerProfileScreen}
+        options={{
+          headerShown: false,
+          animation: 'slide_from_right',
+        }}
+      />
+      
+      {/* Écran d'ajout de spécialité */}
+      <Stack.Screen 
+        name="AddSpecialty" 
+        component={AddSpecialtyScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+        }}
+      />
+      
+      {/* Écran d'édition de spécialité (même composant, paramètres différents) */}
+      <Stack.Screen 
+        name="EditSpecialty" 
+        component={AddSpecialtyScreen}
         options={{
           headerShown: false,
           presentation: 'modal',

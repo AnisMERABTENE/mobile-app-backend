@@ -30,7 +30,6 @@ const createSellerProfile = async (req, res) => {
       });
     }
 
-
     // 4. Valider les spécialités
     if (!specialties || specialties.length === 0) {
       return res.status(400).json({
@@ -453,7 +452,294 @@ const updateNotificationSettings = async (req, res) => {
   }
 };
 
+// ============================================================
+// 🆕 NOUVELLES MÉTHODES POUR L'ÉDITION DU PROFIL VENDEUR
+// ============================================================
+
+/**
+ * Récupérer le profil du vendeur connecté (pour édition)
+ */
+const getSellerProfileForEdit = async (req, res) => {
+  try {
+    const seller = await Seller.findOne({ user: req.user._id })
+      .populate('user', 'firstName lastName email')
+      .select('-__v');
+
+    if (!seller) {
+      return res.status(404).json({
+        error: 'Profil vendeur non trouvé'
+      });
+    }
+
+    res.json({
+      message: 'Profil vendeur récupéré avec succès',
+      seller: {
+        id: seller._id,
+        user: seller.user,
+        businessName: seller.businessName,
+        description: seller.description,
+        phone: seller.phone,
+        location: seller.location,
+        specialties: seller.specialties,
+        status: seller.status,
+        rating: seller.rating,
+        totalReviews: seller.totalReviews,
+        createdAt: seller.createdAt,
+        updatedAt: seller.updatedAt
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur récupération profil vendeur pour édition:', error);
+    res.status(500).json({
+      error: 'Erreur lors de la récupération du profil'
+    });
+  }
+};
+
+/**
+ * Mettre à jour les informations générales du profil vendeur
+ */
+const updateSellerGeneralInfo = async (req, res) => {
+  try {
+    const { businessName, description, phone, location } = req.body;
+    
+    const seller = await Seller.findOne({ user: req.user._id });
+    if (!seller) {
+      return res.status(404).json({
+        error: 'Profil vendeur non trouvé'
+      });
+    }
+
+    const updateData = {};
+
+    // Construire l'objet de mise à jour avec seulement les champs fournis
+    if (businessName !== undefined) updateData.businessName = businessName.trim();
+    if (description !== undefined) updateData.description = description.trim();
+    if (phone !== undefined) updateData.phone = phone.trim();
+    
+    // Gérer la localisation
+    if (location) {
+      updateData.location = {
+        type: 'Point',
+        coordinates: location.coordinates || seller.location.coordinates,
+        address: location.address || seller.location.address,
+        city: location.city || seller.location.city,
+        postalCode: location.postalCode || seller.location.postalCode,
+        country: location.country || seller.location.country || 'France'
+      };
+    }
+
+    // Mettre à jour le vendeur
+    const updatedSeller = await Seller.findByIdAndUpdate(
+      seller._id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    ).populate('user', 'firstName lastName email');
+
+    console.log(`✅ Profil vendeur mis à jour: ${updatedSeller.businessName}`);
+
+    res.json({
+      message: 'Profil mis à jour avec succès',
+      seller: {
+        id: updatedSeller._id,
+        user: updatedSeller.user,
+        businessName: updatedSeller.businessName,
+        description: updatedSeller.description,
+        phone: updatedSeller.phone,
+        location: updatedSeller.location,
+        specialties: updatedSeller.specialties,
+        status: updatedSeller.status,
+        updatedAt: updatedSeller.updatedAt
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur mise à jour profil vendeur:', error);
+    res.status(500).json({
+      error: 'Erreur lors de la mise à jour du profil'
+    });
+  }
+};
+
+/**
+ * Ajouter une nouvelle spécialité
+ */
+const addSellerSpecialty = async (req, res) => {
+  try {
+    const { category, subCategories } = req.body;
+
+    // Vérifier que la catégorie et les sous-catégories sont valides
+    for (const subCategory of subCategories) {
+      if (!validateCategoryAndSubCategory(category, subCategory)) {
+        return res.status(400).json({
+          error: `Combinaison catégorie/sous-catégorie invalide: ${category} > ${subCategory}`
+        });
+      }
+    }
+
+    const seller = await Seller.findOne({ user: req.user._id });
+    if (!seller) {
+      return res.status(404).json({
+        error: 'Profil vendeur non trouvé'
+      });
+    }
+
+    // Vérifier si cette spécialité existe déjà
+    const existingSpecialty = seller.specialties.find(spec => spec.category === category);
+    if (existingSpecialty) {
+      return res.status(400).json({
+        error: 'Cette catégorie est déjà dans vos spécialités. Utilisez la modification pour ajouter des sous-catégories.'
+      });
+    }
+
+    // Ajouter la nouvelle spécialité
+    const newSpecialty = {
+      category,
+      subCategories
+    };
+
+    const updatedSeller = await Seller.findByIdAndUpdate(
+      seller._id,
+      { $push: { specialties: newSpecialty } },
+      { new: true, runValidators: true }
+    );
+
+    console.log(`✅ Spécialité ajoutée: ${category} pour ${updatedSeller.businessName}`);
+
+    res.json({
+      message: 'Spécialité ajoutée avec succès',
+      specialty: newSpecialty,
+      specialties: updatedSeller.specialties
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur ajout spécialité:', error);
+    res.status(500).json({
+      error: 'Erreur lors de l\'ajout de la spécialité'
+    });
+  }
+};
+
+/**
+ * Modifier une spécialité existante
+ */
+const updateSellerSpecialty = async (req, res) => {
+  try {
+    const { specialtyId } = req.params;
+    const { category, subCategories } = req.body;
+
+    // Vérifier que la catégorie et les sous-catégories sont valides
+    for (const subCategory of subCategories) {
+      if (!validateCategoryAndSubCategory(category, subCategory)) {
+        return res.status(400).json({
+          error: `Combinaison catégorie/sous-catégorie invalide: ${category} > ${subCategory}`
+        });
+      }
+    }
+
+    const seller = await Seller.findOne({ user: req.user._id });
+    if (!seller) {
+      return res.status(404).json({
+        error: 'Profil vendeur non trouvé'
+      });
+    }
+
+    // Vérifier que la spécialité existe
+    const specialtyIndex = seller.specialties.findIndex(spec => spec._id.toString() === specialtyId);
+    if (specialtyIndex === -1) {
+      return res.status(404).json({
+        error: 'Spécialité non trouvée'
+      });
+    }
+
+    // Mettre à jour la spécialité
+    const updatedSeller = await Seller.findOneAndUpdate(
+      { 
+        _id: seller._id,
+        'specialties._id': specialtyId
+      },
+      {
+        $set: {
+          'specialties.$.category': category,
+          'specialties.$.subCategories': subCategories
+        }
+      },
+      { new: true, runValidators: true }
+    );
+
+    const updatedSpecialty = updatedSeller.specialties.find(spec => spec._id.toString() === specialtyId);
+
+    console.log(`✅ Spécialité modifiée: ${category} pour ${updatedSeller.businessName}`);
+
+    res.json({
+      message: 'Spécialité modifiée avec succès',
+      specialty: updatedSpecialty,
+      specialties: updatedSeller.specialties
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur modification spécialité:', error);
+    res.status(500).json({
+      error: 'Erreur lors de la modification de la spécialité'
+    });
+  }
+};
+
+/**
+ * Supprimer une spécialité
+ */
+const removeSellerSpecialty = async (req, res) => {
+  try {
+    const { specialtyId } = req.params;
+
+    const seller = await Seller.findOne({ user: req.user._id });
+    if (!seller) {
+      return res.status(404).json({
+        error: 'Profil vendeur non trouvé'
+      });
+    }
+
+    // Vérifier que la spécialité existe
+    const specialtyExists = seller.specialties.some(spec => spec._id.toString() === specialtyId);
+    if (!specialtyExists) {
+      return res.status(404).json({
+        error: 'Spécialité non trouvée'
+      });
+    }
+
+    // Vérifier qu'il restera au moins une spécialité
+    if (seller.specialties.length <= 1) {
+      return res.status(400).json({
+        error: 'Impossible de supprimer la dernière spécialité. Un vendeur doit avoir au moins une spécialité.'
+      });
+    }
+
+    // Supprimer la spécialité
+    const updatedSeller = await Seller.findByIdAndUpdate(
+      seller._id,
+      { $pull: { specialties: { _id: specialtyId } } },
+      { new: true }
+    );
+
+    console.log(`✅ Spécialité supprimée pour ${updatedSeller.businessName}`);
+
+    res.json({
+      message: 'Spécialité supprimée avec succès',
+      specialties: updatedSeller.specialties
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur suppression spécialité:', error);
+    res.status(500).json({
+      error: 'Erreur lors de la suppression de la spécialité'
+    });
+  }
+};
+
+// Export de toutes les méthodes
 module.exports = {
+  // Méthodes existantes
   createSellerProfile,
   getMySellerProfile,
   updateSellerProfile,
@@ -463,5 +749,12 @@ module.exports = {
   getSellerStats,
   deleteSellerProfile,
   getRecommendedSellers,
-  updateNotificationSettings
+  updateNotificationSettings,
+  
+  // Nouvelles méthodes pour l'édition
+  getSellerProfileForEdit,
+  updateSellerGeneralInfo,
+  addSellerSpecialty,
+  updateSellerSpecialty,
+  removeSellerSpecialty
 };

@@ -151,6 +151,24 @@ try {
 }
 
 console.log('📍 Point de contrôle 12: DÉBUT chargement routes photos');
+
+console.log('📍 Point de contrôle 12.5: DÉBUT chargement routes seller');
+console.log('🔄 Tentative de chargement ./routes/seller...');
+try {
+  console.log('📂 Vérification existence fichier ./routes/seller');
+  const sellerRoutes = require('./routes/seller');
+  console.log('✅ Fichier ./routes/seller trouvé et chargé');
+  
+  console.log('🔄 Configuration route /api/seller...');
+  app.use('/api/seller', sellerRoutes);
+  console.log('✅ Routes seller configurées sur /api/seller');
+  console.log('✅ Routes seller chargées avec succès');
+} catch (error) {
+  console.error('❌ ERREUR CRITIQUE: Échec chargement routes seller');
+  console.error('❌ Erreur seller:', error.message);
+  console.error('❌ Stack seller:', error.stack);
+  console.error('❌ Code erreur seller:', error.code);
+}
 console.log('🔄 Tentative de chargement ./routes/photos...');
 try {
   console.log('📂 Vérification existence fichier ./routes/photos');
