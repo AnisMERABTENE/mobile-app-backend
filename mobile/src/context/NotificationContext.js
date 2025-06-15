@@ -233,15 +233,30 @@ export const NotificationProvider = ({ children }) => {
    * Gérer une nouvelle notification de demande
    */
   const handleNewRequestNotification = (data) => {
+    // 🔍 DEBUG COMPLET
+    console.log('🔍 DEBUG - Notification reçue du backend:');
+    console.log('📋 Structure complète:', JSON.stringify(data, null, 2));
+    console.log('🆔 ID trouvé:', data.request?.id || data.id || 'AUCUN ID');
+    console.log('📄 Titre:', data.request?.title || 'AUCUN TITRE');
+    console.log('📍 Localisation:', data.request?.location?.city || 'AUCUNE VILLE');
+    console.log('🏷️ Catégorie:', data.request?.category, '>', data.request?.subCategory);
+    
     const notification = {
-      id: data.id || Date.now().toString(),
+      id: data.request?.id || data.id || Date.now().toString(),
       type: 'new_request',
       title: 'Nouvelle demande !',
       message: `${data.request?.title || 'Demande sans titre'}`,
-      data: data,
+      data: data, // ✅ Garder toute la structure
       timestamp: new Date(),
       read: false,
     };
+
+    console.log('✅ Notification créée:', {
+      id: notification.id,
+      title: notification.title,
+      hasRequestId: !!notification.data?.request?.id,
+      hasDataId: !!notification.data?.id
+    });
 
     // Ajouter à l'état local
     dispatch({ type: NOTIFICATION_ACTIONS.ADD_NOTIFICATION, payload: notification });
@@ -254,7 +269,7 @@ export const NotificationProvider = ({ children }) => {
 
     console.log('✅ Notification ajoutée:', notification.title);
   };
-
+  
   /**
    * Gérer une notification de test
    */

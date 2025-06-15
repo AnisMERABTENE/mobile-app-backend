@@ -16,9 +16,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
 import NotificationBell from '../../components/NotificationBell';
+import NotificationsModal from '../../components/NotificationsModal'; // ✅ NOUVEAU
 import Button from '../../components/Button';
 import SellerService from '../../services/sellerService';
-// ✅ AJOUT : Import du service de photos
 import PhotoUploadService from '../../services/photoUploadService';
 import colors, { getGradientString } from '../../styles/colors';
 
@@ -27,6 +27,7 @@ const HomeScreen = ({ navigation }) => {
   const { notifications, unreadCount } = useNotifications();
   const [sellerProfile, setSellerProfile] = useState(null);
   const [loadingSellerCheck, setLoadingSellerCheck] = useState(true);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false); // ✅ NOUVEAU
 
   // Vérifier si l'utilisateur est déjà vendeur au chargement
   useEffect(() => {
@@ -54,7 +55,6 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-  // ✅ NOUVELLE FONCTION : Test de connexion upload
   const testUploadConnection = async () => {
     try {
       console.log('🧪 Test connexion mobile → Railway...');
@@ -64,13 +64,13 @@ const HomeScreen = ({ navigation }) => {
       if (result.success) {
         Alert.alert(
           '✅ Connexion OK !', 
-          'La connexion entre votre mobile et Railway fonctionne parfaitement !\n\nVous pouvez maintenant tester l\'upload de photos.',
+          'La connexion entre votre mobile et Railway fonctionne parfaitement !',
           [{ text: 'Super !' }]
         );
       } else {
         Alert.alert(
           '❌ Problème de connexion', 
-          `Erreur: ${result.error}\n\nVérifiez votre connexion internet et que le serveur Railway est démarré.`,
+          `Erreur: ${result.error}`,
           [{ text: 'OK' }]
         );
       }
@@ -100,7 +100,7 @@ const HomeScreen = ({ navigation }) => {
   const handleBecomeSellerPress = () => {
     Alert.alert(
       'Devenir vendeur',
-      'Vous allez créer votre profil vendeur. Vous pourrez proposer vos services et répondre aux demandes des utilisateurs.',
+      'Vous allez créer votre profil vendeur.',
       [
         { text: 'Annuler', style: 'cancel' },
         { 
@@ -117,6 +117,49 @@ const HomeScreen = ({ navigation }) => {
   const handleManageSellerProfile = () => {
     console.log('🔄 Redirection vers gestion profil vendeur...');
     navigation.navigate('ManageSellerProfile');
+  };
+
+  // ✅ NAVIGATION PROFONDE : Gérer le clic sur les notifications
+  const handleNotificationPress = (notification) => {
+    console.log('📱 Notification cliquée:', notification);
+    console.log('🔍 Structure notification:', JSON.stringify(notification, null, 2));
+    
+    // Rediriger selon le type de notification
+    if (notification.type === 'new_request') {
+      // Essayer plusieurs chemins pour l'ID de la demande
+      const requestId = notification.data?.request?.id || 
+                       notification.data?.id || 
+                       notification.requestId;
+      
+      if (requestId) {
+        console.log('🔄 Redirection vers demande ID:', requestId);
+        
+        // Navigation directe vers RequestDetail avec l'ID de la demande
+        navigation.navigate('RequestDetail', { 
+          requestId: requestId,
+          // Passer les données pour éviter un rechargement
+          requestData: notification.data?.request 
+        });
+      } else {
+        console.log('⚠️ Pas d\'ID de demande trouvé, redirection vers liste');
+        Alert.alert(
+          'Demande introuvable',
+          'Impossible de trouver cette demande. Redirection vers la liste des demandes.',
+          [
+            { 
+              text: 'OK', 
+              onPress: () => {
+                // Naviguer vers l'onglet MyRequests
+                navigation.navigate('MainTabs');
+              }
+            }
+          ]
+        );
+      }
+    } else {
+      console.log('⚠️ Type de notification non géré:', notification.type);
+      Alert.alert('Notification', 'Type de notification non pris en charge');
+    }
   };
 
   const getUserRoleColor = (role) => {
@@ -168,7 +211,6 @@ const HomeScreen = ({ navigation }) => {
               </Text>
               <Text style={styles.userEmail}>{user?.email}</Text>
               
-              {/* Badge de rôle */}
               <View style={[styles.roleBadge, { backgroundColor: getUserRoleColor(user?.role) }]}>
                 <Text style={styles.roleText}>{getUserRoleText(user?.role)}</Text>
               </View>
@@ -177,9 +219,11 @@ const HomeScreen = ({ navigation }) => {
           
           {/* Actions header */}
           <View style={styles.headerActions}>
+            {/* ✅ MODIFIÉ : NotificationBell avec onPress */}
             <NotificationBell 
               notifications={notifications}
               unreadCount={unreadCount}
+              onPress={() => setShowNotificationsModal(true)}
             />
             
             <TouchableOpacity 
@@ -196,7 +240,7 @@ const HomeScreen = ({ navigation }) => {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.section}>
           
-          {/* ✅ NOUVELLE SECTION : Test de connexion (dev) */}
+          {/* Tests développeur */}
           {__DEV__ && (
             <View style={styles.devSection}>
               <Text style={styles.devTitle}>🧪 Tests développeur</Text>
@@ -262,25 +306,25 @@ const HomeScreen = ({ navigation }) => {
                     Rejoignez notre communauté de vendeurs et commencez à répondre aux demandes des utilisateurs près de chez vous.
                   </Text>
                   
-                  <View style={styles.becomeSellerFeatures}>
-                    <View style={styles.feature}>
-                      <Ionicons name="notifications" size={20} color={colors.success} />
-                      <Text style={styles.featureText}>Recevez des demandes ciblées</Text>
+                  <View style={styles.benefitsList}>
+                    <View style={styles.benefitItem}>
+                      <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                      <Text style={styles.benefitText}>Recevez des demandes ciblées</Text>
                     </View>
-                    <View style={styles.feature}>
-                      <Ionicons name="location" size={20} color={colors.success} />
-                      <Text style={styles.featureText}>Dans votre zone géographique</Text>
+                    <View style={styles.benefitItem}>
+                      <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                      <Text style={styles.benefitText}>Gérez votre activité facilement</Text>
                     </View>
-                    <View style={styles.feature}>
-                      <Ionicons name="pricetag" size={20} color={colors.success} />
-                      <Text style={styles.featureText}>Définissez vos spécialités</Text>
+                    <View style={styles.benefitItem}>
+                      <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                      <Text style={styles.benefitText}>Développez votre clientèle</Text>
                     </View>
                   </View>
                   
                   <Button
-                    title="Je veux devenir vendeur"
+                    title="Créer mon profil vendeur"
                     variant="primary"
-                    icon="arrow-forward"
+                    icon="add-circle"
                     onPress={handleBecomeSellerPress}
                     style={styles.becomeSellerButton}
                   />
@@ -289,26 +333,33 @@ const HomeScreen = ({ navigation }) => {
             </>
           )}
         </View>
-        
       </ScrollView>
+
+      {/* ✅ NOUVEAU : Modal des notifications */}
+      <NotificationsModal
+        visible={showNotificationsModal}
+        onClose={() => setShowNotificationsModal(false)}
+        onNotificationPress={handleNotificationPress}
+      />
     </SafeAreaView>
   );
 };
 
+// Styles existants...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.gray[50],
   },
   header: {
     paddingTop: 20,
     paddingBottom: 30,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
   },
   headerContent: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
   userInfo: {
     flexDirection: 'row',
@@ -316,17 +367,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatarContainer: {
-    marginRight: 16,
+    marginRight: 15,
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 3,
+    borderColor: colors.white,
   },
   avatarPlaceholder: {
     backgroundColor: colors.white,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   userDetails: {
     flex: 1,
@@ -344,151 +397,145 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   roleBadge: {
+    alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
-    alignSelf: 'flex-start',
   },
   roleText: {
     fontSize: 12,
-    fontWeight: '600',
     color: colors.white,
+    fontWeight: '600',
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 15,
   },
   logoutButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: 8,
   },
   content: {
     flex: 1,
-    marginTop: -15,
+    padding: 20,
   },
   section: {
-    padding: 24,
+    gap: 20,
   },
-  
-  // ✅ STYLES DÉVELOPPEUR
   devSection: {
-    backgroundColor: colors.warning,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
+    backgroundColor: colors.warning + '20',
+    padding: 15,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.warning + '40',
   },
   devTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.white,
-    marginBottom: 12,
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.warning,
+    marginBottom: 10,
   },
   devButton: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.warning + '10',
+    borderColor: colors.warning,
   },
-  
-  // Styles vendeur
   sellerCard: {
     backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: 15,
+    padding: 20,
+    elevation: 3,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 4,
   },
   sellerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 15,
   },
   sellerCardTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginLeft: 8,
+    fontWeight: 'bold',
+    color: colors.gray[800],
+    marginLeft: 12,
   },
   sellerCardDescription: {
     fontSize: 14,
-    color: colors.text.secondary,
+    color: colors.gray[600],
     lineHeight: 20,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   sellerStats: {
     flexDirection: 'row',
+    justifyContent: 'space-around',
     marginBottom: 20,
+    paddingVertical: 15,
+    backgroundColor: colors.gray[50],
+    borderRadius: 10,
   },
   sellerStat: {
-    flex: 1,
     alignItems: 'center',
-    padding: 12,
-    backgroundColor: colors.gray[50],
-    borderRadius: 8,
-    marginHorizontal: 4,
   },
   sellerStatNumber: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: colors.primary,
+    marginBottom: 4,
   },
   sellerStatLabel: {
     fontSize: 12,
-    color: colors.text.secondary,
-    marginTop: 4,
+    color: colors.gray[600],
     textAlign: 'center',
   },
   sellerButton: {
-    marginTop: 8,
+    marginTop: 10,
   },
   becomeSellerCard: {
     backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: 15,
+    padding: 25,
+    elevation: 3,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 4,
+    alignItems: 'center',
   },
   becomeSellerHeader: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 15,
   },
   becomeSellerTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: colors.text.primary,
-    marginTop: 12,
+    color: colors.gray[800],
+    marginTop: 10,
   },
   becomeSellerDescription: {
-    fontSize: 16,
-    color: colors.text.secondary,
-    lineHeight: 24,
+    fontSize: 15,
+    color: colors.gray[600],
     textAlign: 'center',
+    lineHeight: 22,
     marginBottom: 20,
   },
-  becomeSellerFeatures: {
-    marginBottom: 24,
+  benefitsList: {
+    alignSelf: 'stretch',
+    marginBottom: 25,
   },
-  feature: {
+  benefitItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
-  featureText: {
+  benefitText: {
     fontSize: 14,
-    color: colors.text.primary,
-    marginLeft: 12,
+    color: colors.gray[700],
+    marginLeft: 10,
     flex: 1,
   },
   becomeSellerButton: {
-    marginTop: 8,
+    alignSelf: 'stretch',
   },
 });
 
