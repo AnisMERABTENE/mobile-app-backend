@@ -42,6 +42,38 @@ class SellerService {
   }
 
   /**
+   * Récupérer mon profil vendeur (méthode existante pour compatibilité)
+   */
+  async getMyProfile() {
+    try {
+      console.log('👤 Récupération profil vendeur...');
+      
+      // ✅ RETOUR : Utiliser ta route existante qui fonctionne
+      const result = await apiRequest.get('/sellers/my/profile');
+
+      if (result.success) {
+        console.log('✅ Profil vendeur récupéré');
+        return {
+          success: true,
+          data: result.data.seller,
+        };
+      } else {
+        console.log('ℹ️ Pas de profil vendeur trouvé');
+        return {
+          success: false,
+          error: result.error || 'Aucun profil vendeur',
+        };
+      }
+    } catch (error) {
+      console.error('❌ Erreur récupération profil vendeur:', error);
+      return {
+        success: false,
+        error: 'Impossible de récupérer le profil vendeur',
+      };
+    }
+  }
+
+  /**
    * Mettre à jour les informations générales du profil vendeur
    */
   async updateGeneralInfo(updateData) {
