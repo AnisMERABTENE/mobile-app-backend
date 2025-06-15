@@ -323,6 +323,198 @@ class SellerService {
   }
 
   /**
+   * Récupérer les statistiques du vendeur
+   */
+  async getStats() {
+    try {
+      console.log('📊 Récupération statistiques vendeur...');
+      
+      const result = await apiRequest.get('/sellers/my/stats');
+
+      if (result.success) {
+        console.log('✅ Statistiques récupérées:', result.data);
+        // Le backend retourne { stats: {...} }, on veut juste les stats
+        return {
+          success: true,
+          data: result.data.stats || result.data,
+        };
+      } else {
+        console.log('ℹ️ Pas de statistiques trouvées');
+        return {
+          success: false,
+          error: result.error || 'Aucune statistique',
+        };
+      }
+    } catch (error) {
+      console.error('❌ Erreur récupération statistiques:', error);
+      return {
+        success: false,
+        error: 'Impossible de récupérer les statistiques',
+      };
+    }
+  }
+
+  /**
+   * Récupérer les demandes reçues pour ce vendeur
+   * (utilise l'API de recherche par proximité basée sur les spécialités du vendeur)
+   */
+  async getReceivedRequests() {
+    try {
+      console.log('📬 Récupération demandes reçues...');
+      
+      // 1. D'abord récupérer mon profil vendeur
+      const profileResult = await this.getMyProfile();
+      if (!profileResult.success) {
+        return {
+          success: false,
+          error: 'Profil vendeur requis',
+        };
+      }
+
+      const sellerProfile = profileResult.data;
+      console.log('✅ Profil vendeur:', sellerProfile.businessName);
+
+      // 2. Rechercher les demandes pour chaque spécialité
+      const allRequests = [];
+      const processedRequestIds = new Set();
+
+      const [longitude, latitude] = sellerProfile.location.coordinates;
+      const maxDistance = 25000; // 25km en mètres
+
+      for (const specialty of sellerProfile.specialties) {
+        try {
+          console.log(`🔍 Recherche demandes: ${specialty.category}`);
+
+          // Utiliser l'endpoint de recherche par proximité
+          const searchResult = await apiRequest.get('/requests/search', {
+            params: {
+              longitude,
+              latitude,
+              maxDistance,
+              category: specialty.category,
+              page: 1,
+              limit: 50
+            }
+          });
+
+          if (searchResult.success && searchResult.data.requests) {
+            // Filtrer par sous-catégories et éviter les doublons
+            const filteredRequests = searchResult.data.requests.filter(request => 
+              specialty.subCategories.includes(request.subCategory) &&
+              !processedRequestIds.has(request._id) &&
+              request.status === 'active'
+            );
+
+            filteredRequests.forEach(request => {
+              processedRequestIds.add(request._id);
+              
+              // Calculer la distance du vendeur
+              const distance = this.calculateDistance(
+                latitude, longitude,
+                request.location.coordinates[1], 
+                request.location.coordinates[0]
+              );
+
+              allRequests.push({
+                ...request,
+                matchingSpecialty: {
+                  category: specialty.category,
+                  subCategory: request.subCategory
+                },
+                distanceFromSeller: Math.round(distance * 100) / 100,
+                matchScore: this.calculateMatchScore(request, specialty, distance)
+              });
+            });
+
+            console.log(`✅ ${filteredRequests.length} demandes trouvées pour ${specialty.category}`);
+          }
+
+        } catch (subError) {
+          console.warn(`⚠️ Erreur recherche ${specialty.category}:`, subError.message);
+        }
+      }
+
+      // 3. Trier par score de correspondance et date
+      allRequests.sort((a, b) => {
+        if (b.matchScore !== a.matchScore) {
+          return b.matchScore - a.matchScore;
+        }
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
+
+      console.log(`✅ ${allRequests.length} demandes reçues trouvées au total`);
+
+      return {
+        success: true,
+        data: {
+          requests: allRequests,
+          total: allRequests.length,
+          byStatus: {
+            active: allRequests.filter(r => r.status === 'active').length,
+            completed: allRequests.filter(r => r.status === 'completed').length,
+            cancelled: allRequests.filter(r => r.status === 'cancelled').length,
+          }
+        },
+      };
+
+    } catch (error) {
+      console.error('❌ Erreur récupération demandes reçues:', error);
+      return {
+        success: false,
+        error: 'Impossible de récupérer les demandes reçues',
+      };
+    }
+  }
+
+  /**
+   * Calculer la distance entre deux points géographiques
+   */
+  calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Rayon de la Terre en km
+    const dLat = this.deg2rad(lat2 - lat1);
+    const dLon = this.deg2rad(lon2 - lon1);
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(this.deg2rad(lat1)) * Math.cos(this.deg2rad(lat2)) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }
+
+  deg2rad(deg) {
+    return deg * (Math.PI/180);
+  }
+
+  /**
+   * Calculer le score de correspondance pour une demande
+   */
+  calculateMatchScore(request, specialty, distance) {
+    let score = 100;
+
+    // Score de distance (plus proche = meilleur)
+    const distanceScore = Math.max(0, 50 - (distance * 2));
+    score += distanceScore;
+
+    // Bonus correspondance exacte
+    score += 30;
+
+    // Score de priorité
+    switch (request.priority) {
+      case 'urgent': score += 20; break;
+      case 'high': score += 15; break;
+      case 'medium': score += 10; break;
+      case 'low': score += 5; break;
+    }
+
+    // Score de fraîcheur (demandes récentes = meilleures)
+    const daysSinceCreated = (new Date() - new Date(request.createdAt)) / (1000 * 60 * 60 * 24);
+    const freshnessScore = Math.max(0, 20 - daysSinceCreated);
+    score += freshnessScore;
+
+    return Math.round(score);
+  }
+
+  /**
    * Valider les données de profil vendeur côté client
    */
   validateProfileData(data) {

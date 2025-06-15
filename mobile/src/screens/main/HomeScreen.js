@@ -116,7 +116,7 @@ const HomeScreen = ({ navigation }) => {
 
   const handleManageSellerProfile = () => {
     console.log('🔄 Redirection vers gestion profil vendeur...');
-    Alert.alert('Info', 'Gestion du profil vendeur en cours de développement...');
+    navigation.navigate('ManageSellerProfile');
   };
 
   const getUserRoleColor = (role) => {

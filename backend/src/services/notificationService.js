@@ -109,7 +109,7 @@ class NotificationService {
       // Requête MongoDB avec géolocalisation et spécialités
       const matchingSellers = await Seller.find({
         // 1. Vendeur actif et disponible
-        status: 'active',
+        status: { $in: ['active', 'pending'] }, // ✅ Accepte pending pour test
         isAvailable: true,
         
         // 2. Dans la zone géographique

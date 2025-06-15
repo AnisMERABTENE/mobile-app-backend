@@ -6,7 +6,8 @@ import NewHomeScreen from '../screens/main/NewHomeScreen';
 import MyRequestsScreen from '../screens/main/MyRequestsScreen';
 import HomeScreen from '../screens/main/HomeScreen'; // Profil
 import CreateSellerScreen from '../screens/main/CreateSellerScreen';
-import RequestDetailScreen from '../screens/main/RequestDetailScreen'; // ✅ AJOUTÉ
+import RequestDetailScreen from '../screens/main/RequestDetailScreen';
+import ManageSellerProfileScreen from '../screens/main/ManageSellerProfileScreen'; // ✅ NOUVEAU
 
 // Components
 import TabNavigator from '../components/TabNavigator';
@@ -34,6 +35,8 @@ const MainNavigator = () => {
           navigate: (screenName) => {
             if (screenName === 'CreateSellerProfile') {
               navigation.navigate('CreateSellerProfile');
+            } else if (screenName === 'ManageSellerProfile') { // ✅ NOUVEAU
+              navigation.navigate('ManageSellerProfile');
             }
           }
         }} />;
@@ -75,6 +78,16 @@ const MainNavigator = () => {
           headerShown: false,
           presentation: 'modal',
           animation: 'slide_from_bottom',
+        }}
+      />
+
+      {/* ✅ NOUVEAU : Écran de gestion du profil vendeur */}
+      <Stack.Screen 
+        name="ManageSellerProfile" 
+        component={ManageSellerProfileScreen}
+        options={{
+          headerShown: false,
+          animation: 'slide_from_right',
         }}
       />
     </Stack.Navigator>
