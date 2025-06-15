@@ -65,56 +65,42 @@ const HomeScreen = ({ navigation }) => {
         Alert.alert(
           '✅ Connexion OK !', 
           'La connexion entre votre mobile et Railway fonctionne parfaitement !\n\nVous pouvez maintenant tester l\'upload de photos.',
-          [{ text: 'Super !', style: 'default' }]
+          [{ text: 'Super !' }]
         );
-        console.log('✅ Test connexion réussi:', result.data);
       } else {
         Alert.alert(
           '❌ Problème de connexion', 
-          `Erreur: ${result.error}\n\nVérifiez votre connexion internet.`,
-          [{ text: 'OK', style: 'default' }]
+          `Erreur: ${result.error}\n\nVérifiez votre connexion internet et que le serveur Railway est démarré.`,
+          [{ text: 'OK' }]
         );
-        console.error('❌ Test connexion échoué:', result.error);
       }
     } catch (error) {
-      Alert.alert(
-        '❌ Erreur technique', 
-        `Une erreur s'est produite: ${error.message}`,
-        [{ text: 'OK', style: 'default' }]
-      );
-      console.error('❌ Erreur test connexion:', error);
-    }
-  };
-
-  const handleNotificationPress = () => {
-    console.log('🔔 Clic sur les notifications');
-    console.log('📋 Notifications:', notifications.length);
-    console.log('🔴 Non lues:', unreadCount);
-
-    if (notifications.length === 0) {
-      Alert.alert('Notifications', 'Aucune notification pour le moment');
-    } else {
-      const latestNotification = notifications[0];
-      Alert.alert(
-        'Dernière notification',
-        latestNotification.message,
-        [{ text: 'OK', style: 'default' }]
-      );
+      Alert.alert('Erreur', 'Impossible de tester la connexion');
     }
   };
 
   const handleLogout = async () => {
-    try {
-      await logout();
-    } catch (error) {
-      console.error('Erreur déconnexion:', error);
-    }
+    Alert.alert(
+      'Déconnexion',
+      'Êtes-vous sûr de vouloir vous déconnecter ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        { 
+          text: 'Déconnexion', 
+          style: 'destructive',
+          onPress: () => {
+            console.log('🚪 Déconnexion demandée par l\'utilisateur');
+            logout();
+          }
+        }
+      ]
+    );
   };
 
   const handleBecomeSellerPress = () => {
     Alert.alert(
-      '🛍️ Devenir vendeur',
-      'Créez votre profil vendeur pour recevoir des demandes dans votre zone et votre domaine d\'expertise.',
+      'Devenir vendeur',
+      'Vous allez créer votre profil vendeur. Vous pourrez proposer vos services et répondre aux demandes des utilisateurs.',
       [
         { text: 'Annuler', style: 'cancel' },
         { 
@@ -130,7 +116,7 @@ const HomeScreen = ({ navigation }) => {
 
   const handleManageSellerProfile = () => {
     console.log('🔄 Redirection vers gestion profil vendeur...');
-    navigation.navigate('EditSellerProfile');
+    Alert.alert('Info', 'Gestion du profil vendeur en cours de développement...');
   };
 
   const getUserRoleColor = (role) => {
@@ -170,170 +156,140 @@ const HomeScreen = ({ navigation }) => {
               {user?.avatar ? (
                 <Image source={{ uri: user.avatar }} style={styles.avatar} />
               ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Ionicons name="person" size={32} color={colors.white} />
+                <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                  <Ionicons name="person" size={32} color={colors.gray[400]} />
                 </View>
               )}
             </View>
             
             <View style={styles.userDetails}>
-              <Text style={styles.welcomeText}>Bonjour,</Text>
               <Text style={styles.userName}>
                 {user?.firstName} {user?.lastName}
               </Text>
-              <View style={styles.roleContainer}>
-                <View
-                  style={[
-                    styles.roleBadge,
-                    { backgroundColor: getUserRoleColor(user?.role) },
-                  ]}
-                >
-                  <Text style={styles.roleText}>
-                    {getUserRoleText(user?.role)}
-                  </Text>
-                </View>
-                
-                {sellerProfile && (
-                  <View style={[styles.roleBadge, styles.sellerBadge]}>
-                    <Ionicons name="business" size={12} color={colors.white} />
-                    <Text style={styles.roleText}>Vendeur</Text>
-                  </View>
-                )}
+              <Text style={styles.userEmail}>{user?.email}</Text>
+              
+              {/* Badge de rôle */}
+              <View style={[styles.roleBadge, { backgroundColor: getUserRoleColor(user?.role) }]}>
+                <Text style={styles.roleText}>{getUserRoleText(user?.role)}</Text>
               </View>
             </View>
           </View>
-
+          
+          {/* Actions header */}
           <View style={styles.headerActions}>
-            {sellerProfile && (
-              <NotificationBell
-                onPress={handleNotificationPress}
-                size={24}
-                color={colors.white}
-                showConnectionStatus={__DEV__}
-                style={styles.notificationBell}
-              />
-            )}
+            <NotificationBell 
+              notifications={notifications}
+              unreadCount={unreadCount}
+            />
             
-            <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+            <TouchableOpacity 
+              style={styles.logoutButton}
+              onPress={handleLogout}
+            >
               <Ionicons name="log-out-outline" size={24} color={colors.white} />
             </TouchableOpacity>
           </View>
         </View>
       </LinearGradient>
 
+      {/* Contenu principal */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.contentPadding}>
+        <View style={styles.section}>
           
-          {/* ✅ SECTION DE TEST AJOUTÉE ICI - AU DÉBUT DU CONTENU */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🧪 Test du système</Text>
-            
-            <View style={styles.testCard}>
-              <View style={styles.testHeader}>
-                <Ionicons name="flask" size={24} color={colors.primary} />
-                <Text style={styles.testTitle}>Test de l'upload de photos</Text>
-              </View>
-              
-              <Text style={styles.testDescription}>
-                Vérifiez que la connexion entre votre mobile et le serveur Railway fonctionne correctement.
-              </Text>
-              
-              <TouchableOpacity 
-                style={styles.testButton}
+          {/* ✅ NOUVELLE SECTION : Test de connexion (dev) */}
+          {__DEV__ && (
+            <View style={styles.devSection}>
+              <Text style={styles.devTitle}>🧪 Tests développeur</Text>
+              <Button
+                title="Tester connexion upload"
+                variant="outline"
                 onPress={testUploadConnection}
-              >
-                <Ionicons name="cloud-upload-outline" size={20} color={colors.white} />
-                <Text style={styles.testButtonText}>
-                  Tester la connexion Railway
-                </Text>
-              </TouchableOpacity>
+                leftIcon="cloud-upload-outline"
+                style={styles.devButton}
+              />
             </View>
-          </View>
+          )}
           
-          {/* Section Vendeur */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Espace vendeur</Text>
-            
-            {!loadingSellerCheck && (
-              <>
-                {sellerProfile ? (
-                  <View style={styles.sellerCard}>
-                    <View style={styles.sellerCardHeader}>
-                      <Ionicons name="business" size={24} color={colors.success} />
-                      <Text style={styles.sellerCardTitle}>Profil vendeur actif</Text>
-                    </View>
-                    <Text style={styles.sellerCardDescription}>
-                      Vous recevez actuellement des demandes dans votre zone.
-                    </Text>
-                    
-                    {unreadCount > 0 && (
-                      <View style={styles.notificationAlert}>
-                        <Ionicons name="notifications" size={20} color={colors.warning} />
-                        <Text style={styles.notificationAlertText}>
-                          {unreadCount} nouvelle{unreadCount > 1 ? 's' : ''} demande{unreadCount > 1 ? 's' : ''} !
-                        </Text>
-                      </View>
-                    )}
-                    
-                    <View style={styles.sellerStats}>
-                      <View style={styles.sellerStat}>
-                        <Text style={styles.sellerStatNumber}>{notifications.length}</Text>
-                        <Text style={styles.sellerStatLabel}>Demandes reçues</Text>
-                      </View>
-                      <View style={styles.sellerStat}>
-                        <Text style={styles.sellerStatNumber}>0</Text>
-                        <Text style={styles.sellerStatLabel}>Réponses envoyées</Text>
-                      </View>
-                    </View>
-                    
-                    <Button
-                      title="Gérer mon profil vendeur"
-                      variant="outline"
-                      icon="settings-outline"
-                      onPress={handleManageSellerProfile}
-                      style={styles.sellerButton}
-                    />
+          {/* Section vendeur */}
+          {!loadingSellerCheck && (
+            <>
+              {sellerProfile ? (
+                // Utilisateur a déjà un profil vendeur
+                <View style={styles.sellerCard}>
+                  <View style={styles.sellerHeader}>
+                    <Ionicons name="business" size={32} color={colors.primary} />
+                    <Text style={styles.sellerCardTitle}>Mon entreprise</Text>
                   </View>
-                ) : (
-                  <View style={styles.becomeSellerCard}>
-                    <View style={styles.becomeSellerHeader}>
-                      <Ionicons name="business-outline" size={48} color={colors.primary} />
-                      <Text style={styles.becomeSellerTitle}>Devenez vendeur</Text>
+                  
+                  <Text style={styles.sellerCardDescription}>
+                    {sellerProfile.description}
+                  </Text>
+                  
+                  <View style={styles.sellerStats}>
+                    <View style={styles.sellerStat}>
+                      <Text style={styles.sellerStatNumber}>4.8</Text>
+                      <Text style={styles.sellerStatLabel}>Note moyenne</Text>
                     </View>
-                    
-                    <Text style={styles.becomeSellerDescription}>
-                      Créez votre profil vendeur pour recevoir des demandes dans votre zone et augmenter vos ventes.
-                    </Text>
-                    
-                    <View style={styles.becomeSellerFeatures}>
-                      <View style={styles.feature}>
-                        <Ionicons name="notifications" size={20} color={colors.success} />
-                        <Text style={styles.featureText}>Recevez des demandes ciblées</Text>
-                      </View>
-                      <View style={styles.feature}>
-                        <Ionicons name="location" size={20} color={colors.success} />
-                        <Text style={styles.featureText}>Dans votre zone géographique</Text>
-                      </View>
-                      <View style={styles.feature}>
-                        <Ionicons name="pricetag" size={20} color={colors.success} />
-                        <Text style={styles.featureText}>Définissez vos spécialités</Text>
-                      </View>
+                    <View style={styles.sellerStat}>
+                      <Text style={styles.sellerStatNumber}>23</Text>
+                      <Text style={styles.sellerStatLabel}>Demandes traitées</Text>
                     </View>
-                    
-                    <Button
-                      title="Je veux devenir vendeur"
-                      variant="primary"
-                      icon="arrow-forward"
-                      onPress={handleBecomeSellerPress}
-                      style={styles.becomeSellerButton}
-                    />
+                    <View style={styles.sellerStat}>
+                      <Text style={styles.sellerStatNumber}>
+                        {sellerProfile.specialties?.length || 0}
+                      </Text>
+                      <Text style={styles.sellerStatLabel}>Spécialités</Text>
+                    </View>
                   </View>
-                )}
-              </>
-            )}
-          </View>
-          
+                  
+                  <Button
+                    title="Gérer mon profil vendeur"
+                    variant="primary"
+                    icon="settings"
+                    onPress={handleManageSellerProfile}
+                    style={styles.sellerButton}
+                  />
+                </View>
+              ) : (
+                // Utilisateur n'a pas encore de profil vendeur
+                <View style={styles.becomeSellerCard}>
+                  <View style={styles.becomeSellerHeader}>
+                    <Ionicons name="business-outline" size={48} color={colors.primary} />
+                    <Text style={styles.becomeSellerTitle}>Devenir vendeur</Text>
+                  </View>
+                  
+                  <Text style={styles.becomeSellerDescription}>
+                    Rejoignez notre communauté de vendeurs et commencez à répondre aux demandes des utilisateurs près de chez vous.
+                  </Text>
+                  
+                  <View style={styles.becomeSellerFeatures}>
+                    <View style={styles.feature}>
+                      <Ionicons name="notifications" size={20} color={colors.success} />
+                      <Text style={styles.featureText}>Recevez des demandes ciblées</Text>
+                    </View>
+                    <View style={styles.feature}>
+                      <Ionicons name="location" size={20} color={colors.success} />
+                      <Text style={styles.featureText}>Dans votre zone géographique</Text>
+                    </View>
+                    <View style={styles.feature}>
+                      <Ionicons name="pricetag" size={20} color={colors.success} />
+                      <Text style={styles.featureText}>Définissez vos spécialités</Text>
+                    </View>
+                  </View>
+                  
+                  <Button
+                    title="Je veux devenir vendeur"
+                    variant="primary"
+                    icon="arrow-forward"
+                    onPress={handleBecomeSellerPress}
+                    style={styles.becomeSellerButton}
+                  />
+                </View>
+              )}
+            </>
+          )}
         </View>
+        
       </ScrollView>
     </SafeAreaView>
   );
@@ -351,8 +307,8 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
   userInfo: {
     flexDirection: 'row',
@@ -363,27 +319,17 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 2,
-    borderColor: colors.white,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
   },
   avatarPlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',
   },
   userDetails: {
     flex: 1,
-  },
-  welcomeText: {
-    fontSize: 16,
-    color: colors.white,
-    opacity: 0.8,
   },
   userName: {
     fontSize: 20,
@@ -391,129 +337,76 @@ const styles = StyleSheet.create({
     color: colors.white,
     marginBottom: 4,
   },
-  roleContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  userEmail: {
+    fontSize: 14,
+    color: colors.white,
+    opacity: 0.9,
+    marginBottom: 8,
   },
   roleBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
-    marginRight: 8,
-    marginBottom: 4,
-  },
-  sellerBadge: {
-    backgroundColor: colors.success,
-    flexDirection: 'row',
-    alignItems: 'center',
+    alignSelf: 'flex-start',
   },
   roleText: {
     fontSize: 12,
-    color: colors.white,
     fontWeight: '600',
-    marginLeft: 2,
+    color: colors.white,
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  notificationBell: {
-    marginRight: 16,
+    gap: 12,
   },
   logoutButton: {
-    padding: 8,
-  },
-  notificationAlert: {
-    flexDirection: 'row',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.warning + '20',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  notificationAlertText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: colors.warning,
-    fontWeight: '600',
   },
   content: {
     flex: 1,
     marginTop: -15,
   },
-  contentPadding: {
+  section: {
     padding: 24,
   },
-  section: {
+  
+  // ✅ STYLES DÉVELOPPEUR
+  devSection: {
+    backgroundColor: colors.warning,
+    borderRadius: 12,
+    padding: 16,
     marginBottom: 24,
   },
-  sectionTitle: {
-    fontSize: 20,
+  devTitle: {
+    fontSize: 16,
     fontWeight: 'bold',
-    color: colors.text.primary,
-    marginBottom: 16,
-  },
-  // ✅ NOUVEAUX STYLES POUR LA SECTION DE TEST
-  testCard: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 2,
-    borderColor: '#ff6b6b30',
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  testHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    color: colors.white,
     marginBottom: 12,
   },
-  testTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginLeft: 8,
+  devButton: {
+    backgroundColor: colors.white,
   },
-  testDescription: {
-    fontSize: 14,
-    color: colors.text.secondary,
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  testButton: {
-    backgroundColor: '#ff6b6b',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 15,
-    borderRadius: 12,
-  },
-  testButtonText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  // Styles existants...
+  
+  // Styles vendeur
   sellerCard: {
     backgroundColor: colors.white,
     borderRadius: 16,
-    padding: 20,
-    borderWidth: 2,
-    borderColor: colors.success + '30',
+    padding: 24,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
   },
-  sellerCardHeader: {
+  sellerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   sellerCardTitle: {
     fontSize: 18,

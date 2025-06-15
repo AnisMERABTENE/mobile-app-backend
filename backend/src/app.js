@@ -151,7 +151,6 @@ try {
 }
 
 console.log('📍 Point de contrôle 12: DÉBUT chargement routes photos');
-
 console.log('🔄 Tentative de chargement ./routes/photos...');
 try {
   console.log('📂 Vérification existence fichier ./routes/photos');
