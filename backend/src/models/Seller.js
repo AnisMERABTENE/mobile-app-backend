@@ -185,6 +185,18 @@ const sellerSchema = new mongoose.Schema({
     }
   },
 
+  // 🔥 NOUVEAU : Token pour les notifications push Expo
+  expoPushToken: {
+    type: String,
+    default: null
+  },
+
+  // 🔥 NOUVEAU : Date de dernière mise à jour du token
+  lastTokenUpdate: {
+    type: Date,
+    default: null
+  },
+
   // Photos du profil/entreprise
   photos: [{
     url: {
@@ -238,6 +250,9 @@ sellerSchema.index({ user: 1 });
 
 // Index pour les recherches par ville
 sellerSchema.index({ 'location.city': 1, 'location.postalCode': 1 });
+
+// 🔥 NOUVEAU : Index pour les notifications push
+sellerSchema.index({ expoPushToken: 1 });
 
 // Méthode pour vérifier si le vendeur peut servir une localisation
 sellerSchema.methods.canServeLocation = function(longitude, latitude) {
@@ -296,6 +311,18 @@ sellerSchema.methods.updateActivity = function() {
   return this.save();
 };
 
+// 🔥 NOUVEAU : Méthode pour vérifier si le vendeur a un token push valide
+sellerSchema.methods.hasPushToken = function() {
+  return this.expoPushToken && this.expoPushToken.startsWith('ExponentPushToken[');
+};
+
+// 🔥 NOUVEAU : Méthode pour mettre à jour le token push
+sellerSchema.methods.updatePushToken = function(token) {
+  this.expoPushToken = token;
+  this.lastTokenUpdate = new Date();
+  return this.save();
+};
+
 // Méthode statique pour trouver des vendeurs par proximité et spécialité
 sellerSchema.statics.findNearbyBySpecialty = function(longitude, latitude, maxDistance, category, subCategory = null) {
   const matchQuery = {
@@ -342,6 +369,16 @@ sellerSchema.statics.getGlobalStats = function() {
                   { $subtract: [new Date(), 15 * 60 * 1000] } // 15 minutes
                 ]
               },
+              1,
+              0
+            ]
+          }
+        },
+        // 🔥 NOUVEAU : Vendeurs avec tokens push
+        sellersWithPushTokens: {
+          $sum: {
+            $cond: [
+              { $ne: ['$expoPushToken', null] },
               1,
               0
             ]

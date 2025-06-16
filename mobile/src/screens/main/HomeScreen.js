@@ -247,6 +247,26 @@ const HomeScreen = ({ navigation }) => {
       Alert.alert('❌ Erreur', error.message);
     }
   };
+  const debugTokensDB = async () => {
+    try {
+      const { default: apiRequest } = await import('../services/api');
+      const response = await apiRequest.get('/push-tokens/debug');
+      
+      console.log('🔍 DEBUG TOKENS COMPLET:', JSON.stringify(response.data, null, 2));
+      
+      Alert.alert(
+        '🔍 Debug Tokens DB', 
+        `✅ User token: ${response.data.debug.userHasToken ? 'OUI' : 'NON'}\n` +
+        `✅ Seller token: ${response.data.debug.sellerHasToken ? 'OUI' : 'NON'}\n` +
+        `📊 Total users avec tokens: ${response.data.debug.totalUsersWithTokens}\n` +
+        `📊 Total sellers avec tokens: ${response.data.debug.totalSellersWithTokens}`,
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('❌ Erreur debug:', error);
+      Alert.alert('❌ Erreur debug', error.response?.data?.error || error.message);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -328,6 +348,14 @@ const HomeScreen = ({ navigation }) => {
   leftIcon="server-outline"
   style={styles.devButton}
 />
+<Button
+  title="🔍 Debug tokens DB"
+  variant="outline"
+  onPress={debugTokensDB}
+  leftIcon="search-outline"
+  style={styles.devButton}
+/>
+
             </View>
           )}
           
