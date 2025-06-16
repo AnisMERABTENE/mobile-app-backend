@@ -84,7 +84,7 @@ const NotificationsModal = ({ visible, onClose, onNotificationPress }) => {
         onPress={onClose}
       >
         <View style={styles.modalContainer}>
-          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+          <View>
             {/* Header */}
             <View style={styles.header}>
               <Text style={styles.title}>Notifications</Text>
@@ -177,7 +177,7 @@ const NotificationsModal = ({ visible, onClose, onNotificationPress }) => {
                 ))
               )}
             </ScrollView>
-          </TouchableOpacity>
+          </View>
         </View>
       </TouchableOpacity>
     </Modal>

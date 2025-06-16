@@ -30,16 +30,24 @@ const MainNavigator = () => {
         return <NewHomeScreen navigation={navigation} />;
       case 'myRequests':
         return <MyRequestsScreen navigation={navigation} />;
-      case 'profile':
-        return <HomeScreen navigation={{ 
-          navigate: (screenName) => {
-            if (screenName === 'CreateSellerProfile') {
-              navigation.navigate('CreateSellerProfile');
-            } else if (screenName === 'ManageSellerProfile') { // ✅ NOUVEAU
-              navigation.navigate('ManageSellerProfile');
-            }
-          }
-        }} />;
+        case 'profile':
+            return <HomeScreen navigation={{ 
+              navigate: (screenName, params) => {
+                if (screenName === 'CreateSellerProfile') {
+                  navigation.navigate('CreateSellerProfile');
+                } else if (screenName === 'ManageSellerProfile') {
+                  navigation.navigate('ManageSellerProfile');
+                } else if (screenName === 'RequestDetailScreen') {
+                  navigation.navigate('RequestDetailScreen', params);
+                } else if (screenName === 'MainTabs') {
+                  // Pour revenir aux onglets principaux
+                  setCurrentTab('myRequests');
+                } else {
+                  // Fallback pour toute autre navigation
+                  navigation.navigate(screenName, params);
+                }
+              }
+            }} />;
       default:
         return <NewHomeScreen navigation={navigation} />;
     }

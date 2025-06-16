@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
 import NotificationBell from '../../components/NotificationBell';
-import NotificationsModal from '../../components/NotificationsModal'; // ✅ NOUVEAU
+import NotificationsModal from '../../components/NotificationsModal';
 import Button from '../../components/Button';
 import SellerService from '../../services/sellerService';
 import PhotoUploadService from '../../services/photoUploadService';
@@ -27,7 +27,7 @@ const HomeScreen = ({ navigation }) => {
   const { notifications, unreadCount } = useNotifications();
   const [sellerProfile, setSellerProfile] = useState(null);
   const [loadingSellerCheck, setLoadingSellerCheck] = useState(true);
-  const [showNotificationsModal, setShowNotificationsModal] = useState(false); // ✅ NOUVEAU
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
 
   // Vérifier si l'utilisateur est déjà vendeur au chargement
   useEffect(() => {
@@ -120,6 +120,7 @@ const HomeScreen = ({ navigation }) => {
   };
 
   // ✅ NAVIGATION PROFONDE : Gérer le clic sur les notifications
+  // Dans HomeScreen.js, modifie la fonction handleNotificationPress comme ceci :
   const handleNotificationPress = (notification) => {
     console.log('📱 Notification cliquée:', notification);
     console.log('🔍 Structure notification:', JSON.stringify(notification, null, 2));
@@ -128,16 +129,16 @@ const HomeScreen = ({ navigation }) => {
     if (notification.type === 'new_request') {
       // Essayer plusieurs chemins pour l'ID de la demande
       const requestId = notification.data?.request?.id || 
+                       notification.data?.request?._id ||
                        notification.data?.id || 
                        notification.requestId;
       
       if (requestId) {
         console.log('🔄 Redirection vers demande ID:', requestId);
         
-        // Navigation directe vers RequestDetail avec l'ID de la demande
+        // ✅ CORRECT : Utilise le bon nom d'écran du MainNavigator
         navigation.navigate('RequestDetail', { 
           requestId: requestId,
-          // Passer les données pour éviter un rechargement
           requestData: notification.data?.request 
         });
       } else {
@@ -219,7 +220,7 @@ const HomeScreen = ({ navigation }) => {
           
           {/* Actions header */}
           <View style={styles.headerActions}>
-            {/* ✅ MODIFIÉ : NotificationBell avec onPress */}
+            {/* ✅ CORRIGÉ : NotificationBell avec onPress */}
             <NotificationBell 
               notifications={notifications}
               unreadCount={unreadCount}
@@ -335,7 +336,7 @@ const HomeScreen = ({ navigation }) => {
         </View>
       </ScrollView>
 
-      {/* ✅ NOUVEAU : Modal des notifications */}
+      {/* ✅ CORRIGÉ : Modal des notifications avec les bons noms de variables */}
       <NotificationsModal
         visible={showNotificationsModal}
         onClose={() => setShowNotificationsModal(false)}
@@ -345,7 +346,6 @@ const HomeScreen = ({ navigation }) => {
   );
 };
 
-// Styles existants...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
