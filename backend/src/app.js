@@ -222,6 +222,24 @@ try {
   console.error('❌ Stack WebSocket:', error.stack);
   console.error('❌ Code erreur WebSocket:', error.code);
 }
+// Après les autres routes (requests, sellers, etc.)
+console.log('📍 Point de contrôle XX: DÉBUT chargement routes responses');
+console.log('🔄 Tentative de chargement ./routes/responses...');
+try {
+  console.log('📂 Vérification existence fichier ./routes/responses');
+  const responseRoutes = require('./routes/responses');
+  console.log('✅ Fichier ./routes/responses trouvé et chargé');
+  
+  console.log('🔄 Configuration route /api/responses...');
+  app.use('/api/responses', responseRoutes);
+  console.log('✅ Routes responses configurées sur /api/responses');
+  console.log('✅ Routes responses chargées avec succès');
+} catch (error) {
+  console.error('❌ ERREUR CRITIQUE: Échec chargement routes responses');
+  console.error('❌ Erreur responses:', error.message);
+  console.error('❌ Stack responses:', error.stack);
+  console.error('❌ Code erreur responses:', error.code);
+}
 
 console.log('📍 Point de contrôle 16: Configuration route test email');
 // Route de test email (développement seulement)
