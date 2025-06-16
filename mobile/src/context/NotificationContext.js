@@ -3,6 +3,7 @@ import { Platform, Alert } from 'react-native';
 import io from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import StorageService from '../utils/storage';
+import pushNotificationService from '../services/pushNotificationService';
 
 // État initial des notifications
 const initialState = {
@@ -12,6 +13,8 @@ const initialState = {
   unreadCount: 0,
   isConnecting: false,
   connectionError: null,
+  pushToken: null,
+  pushInitialized: false,
 };
 
 // Actions pour les notifications
@@ -27,6 +30,8 @@ const NOTIFICATION_ACTIONS = {
   INCREMENT_UNREAD: 'INCREMENT_UNREAD',
   DECREMENT_UNREAD: 'DECREMENT_UNREAD',
   SET_UNREAD_COUNT: 'SET_UNREAD_COUNT',
+  SET_PUSH_TOKEN: 'SET_PUSH_TOKEN',
+  SET_PUSH_INITIALIZED: 'SET_PUSH_INITIALIZED',
 };
 
 // Reducer pour gérer l'état des notifications
@@ -96,6 +101,18 @@ const notificationReducer = (state, action) => {
         ...state,
         unreadCount: action.payload,
       };
+
+    case NOTIFICATION_ACTIONS.SET_PUSH_TOKEN:
+      return {
+        ...state,
+        pushToken: action.payload,
+      };
+      
+    case NOTIFICATION_ACTIONS.SET_PUSH_INITIALIZED:
+      return {
+        ...state,
+        pushInitialized: action.payload,
+      };
       
     default:
       return state;
@@ -127,6 +144,37 @@ export const NotificationProvider = ({ children }) => {
   useEffect(() => {
     loadSavedNotifications();
   }, []);
+
+  // Initialiser les notifications push
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      initializePushNotifications();
+    }
+  }, [isAuthenticated, user]);
+
+  /**
+   * Initialiser les notifications push Expo
+   */
+  const initializePushNotifications = async () => {
+    try {
+      console.log('🔔 Initialisation notifications push...');
+      
+      const result = await pushNotificationService.initialize();
+      
+      if (result.success) {
+        console.log('✅ Push notifications initialisées');
+        dispatch({ type: NOTIFICATION_ACTIONS.SET_PUSH_INITIALIZED, payload: true });
+        dispatch({ type: NOTIFICATION_ACTIONS.SET_PUSH_TOKEN, payload: result.token });
+        
+        // TODO: Envoyer le token au backend plus tard
+        console.log('🎯 Token push reçu:', result.token?.substring(0, 20) + '...');
+      } else {
+        console.log('⚠️ Échec init push notifications:', result.error);
+      }
+    } catch (error) {
+      console.error('❌ Erreur init push notifications:', error);
+    }
+  };
 
   /**
    * Connexion au serveur Socket.IO
@@ -227,6 +275,9 @@ export const NotificationProvider = ({ children }) => {
       dispatch({ type: NOTIFICATION_ACTIONS.SET_SOCKET, payload: null });
       dispatch({ type: NOTIFICATION_ACTIONS.SET_CONNECTED, payload: false });
     }
+    
+    // Nettoyer les listeners push
+    pushNotificationService.cleanup();
   };
 
   /**
@@ -290,10 +341,16 @@ export const NotificationProvider = ({ children }) => {
   };
 
   /**
-   * Afficher une notification locale (Alert pour l'instant)
+   * Afficher une notification locale - AMÉLIORÉE avec Expo
    */
   const showLocalNotification = (title, message) => {
-    // Pour l'instant, on utilise Alert, plus tard on pourra utiliser expo-notifications
+    // Si les push notifications sont initialisées, pas besoin d'Alert
+    if (state.pushInitialized) {
+      console.log('🔔 Notification reçue (push notifications actives):', title);
+      return;
+    }
+    
+    // Fallback : Alert pour les simulateurs ou si push échoue
     setTimeout(() => {
       Alert.alert(title, message, [
         { text: 'OK', style: 'default' }
@@ -323,6 +380,32 @@ export const NotificationProvider = ({ children }) => {
     dispatch({ type: NOTIFICATION_ACTIONS.CLEAR_NOTIFICATIONS });
     await StorageService.removeItem('notifications');
     console.log('🧹 Toutes les notifications effacées');
+  };
+
+  /**
+   * Test des notifications push
+   */
+  const testPushNotification = async () => {
+    try {
+      const result = await pushNotificationService.sendTestNotification();
+      if (result.success) {
+        console.log('✅ Test notification envoyé');
+        return { success: true, message: 'Notification test envoyée !' };
+      } else {
+        console.log('❌ Échec test notification:', result.error);
+        return { success: false, error: result.error };
+      }
+    } catch (error) {
+      console.error('❌ Erreur test push:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  /**
+   * Obtenir les infos des notifications push
+   */
+  const getPushNotificationInfo = () => {
+    return pushNotificationService.getInfo();
   };
 
   /**
@@ -376,12 +459,20 @@ export const NotificationProvider = ({ children }) => {
     notifications: state.notifications,
     unreadCount: state.unreadCount,
     
+    // État push notifications
+    pushToken: state.pushToken,
+    pushInitialized: state.pushInitialized,
+    
     // Actions
     connectSocket,
     disconnectSocket,
     markAsRead,
     clearAllNotifications,
     getConnectionStats,
+    
+    // Actions push notifications
+    testPushNotification,
+    getPushNotificationInfo,
     
     // Dispatch pour des actions avancées
     dispatch,

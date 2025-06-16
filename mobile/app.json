@@ -9,6 +9,13 @@
       "resizeMode": "contain",
       "backgroundColor": "#667eea"
     },
+    "notification": {
+      "icon": "./assets/icon.png",
+      "color": "#667eea",
+      "iosDisplayInForeground": true,
+      "androidMode": "default",
+      "androidCollapsedTitle": "Nouvelles demandes"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mobileapp.app",
@@ -35,8 +42,14 @@
         }
       ],
       "permissions": [
-        "android.permission.INTERNET"
-      ]
+        "android.permission.INTERNET",
+        "android.permission.VIBRATE"
+      ],
+      "notification": {
+        "icon": "./assets/notification-icon.png",
+        "color": "#667eea",
+        "defaultChannel": "default"
+      }
     },
     "scheme": "myapp",
     "extra": {
