@@ -106,8 +106,13 @@ const createResponse = async (req, res) => {
 
     console.log('✅ Réponse créée:', newResponse._id);
 
-    // 8. TODO: Envoyer notification push au client
-    // Cela sera implémenté dans la prochaine étape
+   // 8. Envoyer notification au client
+   try {
+    const NotificationService = require('../services/notificationService');
+    await NotificationService.notifyResponseStatusChange(response, status, feedback);
+  } catch (notifError) {
+    console.error('⚠️ Erreur notification changement statut (non-bloquant):', notifError);
+  }
 
     res.status(201).json({
       message: 'Réponse envoyée avec succès',
