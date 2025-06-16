@@ -37,7 +37,7 @@ const createResponse = async (req, res) => {
     // 3. Vérifier que l'utilisateur a un profil vendeur actif
     const seller = await Seller.findOne({ 
       user: req.user._id,
-      status: 'active'
+      status: { $in: ['active', 'pending'] }  // ← ACCEPTER AUSSI "pending"
     });
 
     if (!seller) {
