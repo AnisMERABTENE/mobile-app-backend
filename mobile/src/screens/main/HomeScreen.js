@@ -235,6 +235,18 @@ const HomeScreen = ({ navigation }) => {
         return 'Utilisateur';
     }
   };
+  const testBackendPush = async () => {
+    try {
+      const result = await testBackendPushNotification();
+      if (result.success) {
+        Alert.alert('✅ Test backend réussi !', 'Notification envoyée depuis Railway !');
+      } else {
+        Alert.alert('❌ Test backend échoué', result.error);
+      }
+    } catch (error) {
+      Alert.alert('❌ Erreur', error.message);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -309,6 +321,13 @@ const HomeScreen = ({ navigation }) => {
                 leftIcon="notifications-outline"
                 style={styles.devButton}
               />
+              <Button
+  title="🧪 Test push backend"
+  variant="outline"
+  onPress={testBackendPush}
+  leftIcon="server-outline"
+  style={styles.devButton}
+/>
             </View>
           )}
           
