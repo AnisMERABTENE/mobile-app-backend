@@ -367,9 +367,9 @@ class NotificationService {
             maxDistance: request.radius * 1000, // Conversion km -> mètres
             spherical: true,
             query: {
-              status: 'active',
-              isAvailable: true
-            }
+                status: { $in: ['active', 'pending'] },
+                isAvailable: true
+              }
           }
         },
         
