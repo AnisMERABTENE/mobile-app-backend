@@ -229,7 +229,69 @@ router.post('/test', authenticateToken, async (req, res) => {
     });
   }
 });
+// AJOUTER CETTE ROUTE À LA FIN DE ton pushTokens.js (avant module.exports)
 
+/**
+ * @route   GET /api/push-tokens/debug
+ * @desc    Debug des tokens en base de données
+ * @access  Private
+ */
+router.get('/debug', authenticateToken, async (req, res) => {
+    try {
+      const userId = req.user._id;
+      
+      console.log('🔍 DEBUG TOKENS pour:', req.user.email);
+      
+      // 1. Vérifier dans User
+      const user = await User.findById(userId);
+      console.log('👤 User token:', user.expoPushToken ? user.expoPushToken.substring(0, 20) + '...' : 'AUCUN');
+      
+      // 2. Vérifier dans Seller
+      const seller = await Seller.findOne({ user: userId });
+      console.log('🏪 Seller exists:', !!seller);
+      if (seller) {
+        console.log('🏪 Seller token:', seller.expoPushToken ? seller.expoPushToken.substring(0, 20) + '...' : 'AUCUN');
+      }
+      
+      // 3. Vérifier TOUS les users avec tokens
+      const usersWithTokens = await User.find({ expoPushToken: { $exists: true, $ne: null } }).select('email expoPushToken');
+      console.log('📊 Total users avec tokens:', usersWithTokens.length);
+      
+      // 4. Vérifier TOUS les sellers avec tokens  
+      const sellersWithTokens = await Seller.find({ expoPushToken: { $exists: true, $ne: null } }).populate('user', 'email').select('businessName expoPushToken user');
+      console.log('📊 Total sellers avec tokens:', sellersWithTokens.length);
+      
+      res.json({
+        success: true,
+        debug: {
+          userId: userId,
+          userEmail: req.user.email,
+          userHasToken: !!user.expoPushToken,
+          userToken: user.expoPushToken ? user.expoPushToken.substring(0, 20) + '...' : null,
+          sellerExists: !!seller,
+          sellerHasToken: seller ? !!seller.expoPushToken : false,
+          sellerToken: seller?.expoPushToken ? seller.expoPushToken.substring(0, 20) + '...' : null,
+          totalUsersWithTokens: usersWithTokens.length,
+          totalSellersWithTokens: sellersWithTokens.length,
+          allUsersWithTokens: usersWithTokens.map(u => ({
+            email: u.email,
+            token: u.expoPushToken.substring(0, 20) + '...'
+          })),
+          allSellersWithTokens: sellersWithTokens.map(s => ({
+            businessName: s.businessName,
+            email: s.user.email,
+            token: s.expoPushToken.substring(0, 20) + '...'
+          }))
+        }
+      });
+      
+    } catch (error) {
+      console.error('❌ Erreur debug tokens:', error);
+      res.status(500).json({
+        error: 'Erreur debug tokens'
+      });
+    }
+  });
 console.log('✅ Routes Push Tokens chargées');
 
 module.exports = router;

@@ -103,6 +103,9 @@ class NotificationService {
 /**
  * Trouver les vendeurs correspondant à une demande
  */
+/**
+ * Trouver les vendeurs correspondant à une demande
+ */
 async findMatchingSellers(request) {
     try {
       const [longitude, latitude] = request.location.coordinates;
@@ -114,10 +117,8 @@ async findMatchingSellers(request) {
       console.log('  - Catégorie:', request.category);
       console.log('  - Sous-catégorie:', request.subCategory);
   
-      // 🔥 NOUVEAU : Recherche en 2 étapes pour debug les tokens
-      
-      // Étape 1: Trouver tous les vendeurs correspondants (sans condition de token)
-      const allMatchingSellers = await Seller.find({
+      // 🔥 CORRECTION : Retour à la logique originale (pas de filtrage par token)
+      const matchingSellers = await Seller.find({
         status: { $in: ['active', 'pending'] },
         isAvailable: true,
         location: {
@@ -131,40 +132,33 @@ async findMatchingSellers(request) {
         },
         'specialties.category': request.category,
         'specialties.subCategories': request.subCategory,
+        // 🔥 SUPPRIMÉ : Plus de condition sur pushNotifications
       })
       .populate('user', 'firstName lastName email avatar')
       .lean();
   
-      console.log(`🎯 ${allMatchingSellers.length} vendeurs trouvés AVANT filtrage token`);
+      console.log(`🎯 ${matchingSellers.length} vendeurs actifs trouvés`);
   
-      // Étape 2: Debug les tokens pour chaque vendeur
-      const sellersWithTokens = [];
-      
-      for (const seller of allMatchingSellers) {
-        console.log(`🔍 Vendeur ${seller.user.email}:`);
-        console.log(`  - ID vendeur: ${seller._id}`);
-        console.log(`  - Token dans seller: ${seller.expoPushToken ? 'OUI' : 'NON'}`);
+      // 🔥 NOUVEAU : Enrichir avec les tokens push (mais ne pas filtrer)
+      for (const seller of matchingSellers) {
+        // Vérifier le token dans seller puis dans user
+        if (!seller.expoPushToken) {
+          const userWithToken = await require('../models/User').findById(seller.user._id).select('expoPushToken');
+          if (userWithToken?.expoPushToken) {
+            seller.expoPushToken = userWithToken.expoPushToken;
+            console.log(`🔄 Token récupéré depuis User pour ${seller.user.email}`);
+          }
+        }
         
-        // Vérifier aussi dans le modèle User
-        const userWithToken = await require('../models/User').findById(seller.user._id).select('expoPushToken');
-        console.log(`  - Token dans user: ${userWithToken?.expoPushToken ? 'OUI' : 'NON'}`);
-        
-        // Utiliser le token du seller OU du user
-        const finalToken = seller.expoPushToken || userWithToken?.expoPushToken;
-        
-        if (finalToken && expoPushService.isValidExpoPushToken(finalToken)) {
-          seller.expoPushToken = finalToken; // Assurer que le token est présent
-          sellersWithTokens.push(seller);
-          console.log(`  ✅ Token valide trouvé: ${finalToken.substring(0, 20)}...`);
+        if (seller.expoPushToken) {
+          console.log(`✅ Token disponible pour ${seller.user.email}: ${seller.expoPushToken.substring(0, 20)}...`);
         } else {
-          console.log(`  ❌ Pas de token push valide`);
+          console.log(`ℹ️ Pas de token push pour ${seller.user.email} (Socket.IO seulement)`);
         }
       }
   
-      console.log(`📊 Résultat final: ${sellersWithTokens.length}/${allMatchingSellers.length} vendeurs avec tokens valides`);
-  
-      // Calculer distance et score pour les vendeurs avec tokens
-      const sellersWithScores = sellersWithTokens.map(seller => {
+      // Calculer distance et score
+      const sellersWithScores = matchingSellers.map(seller => {
         const distance = this.calculateDistance(
           latitude, longitude,
           seller.location.coordinates[1], seller.location.coordinates[0]
@@ -250,9 +244,6 @@ async findMatchingSellers(request) {
     }
   }
 
-  /**
-   * 🔥 MODIFIÉ : Envoyer une notification personnalisée à un vendeur (Socket.IO + Push)
-   */
   async sendPersonalizedNotification(seller, baseNotificationData, request) {
     try {
       // Personnaliser les données pour ce vendeur
@@ -274,23 +265,24 @@ async findMatchingSellers(request) {
           businessName: seller.businessName
         }
       };
-
-      // 🔥 1. ENVOYER VIA SOCKET.IO (existant)
+  
+      // 🔥 1. TOUJOURS ENVOYER VIA SOCKET.IO (comme avant)
       const socketSuccess = sendNotificationToUser(
         seller.user._id.toString(),
         'new_request_notification',
         personalizedData
       );
-
+  
       if (socketSuccess) {
-        console.log(`📨 Notification envoyée à ${seller.user.email} (score: ${seller.matchScore})`);
+        console.log(`📨 Notification Socket.IO envoyée à ${seller.user.email} (score: ${seller.matchScore})`);
+      } else {
+        console.log(`⚠️ Échec Socket.IO pour ${seller.user.email}`);
       }
-
-      // 🔥 2. ENVOYER VIA EXPO PUSH (nouveau)
+  
+      // 🔥 2. ESSAYER D'ENVOYER VIA PUSH (bonus si token disponible)
       if (seller.expoPushToken && expoPushService.isValidExpoPushToken(seller.expoPushToken)) {
         console.log(`🔔 Envoi notification push à ${seller.user.email}...`);
         
-        // Créer la notification push formatée
         const pushNotification = expoPushService.createNewRequestNotification({
           _id: request._id,
           title: request.title,
@@ -299,7 +291,6 @@ async findMatchingSellers(request) {
           subCategory: request.subCategory
         });
         
-        // Envoyer la notification push
         const pushResult = await expoPushService.sendPushNotification(
           seller.expoPushToken,
           pushNotification.title,
@@ -313,17 +304,18 @@ async findMatchingSellers(request) {
           console.log(`⚠️ Échec push notification pour ${seller.user.email}:`, pushResult.error);
         }
       } else {
-        console.log(`ℹ️ Pas de token push valide pour ${seller.user.email}`);
+        console.log(`ℹ️ Pas de token push valide pour ${seller.user.email} (Socket.IO seulement)`);
       }
-
-      // Mettre à jour les stats du vendeur
+  
+      // Mettre à jour les stats
       await this.updateSellerStats(seller._id, 'notification_received');
-
-      return socketSuccess; // On considère que c'est réussi si Socket.IO fonctionne
-
+  
+      // 🔥 TOUJOURS retourner true si Socket.IO fonctionne
+      return socketSuccess;
+  
     } catch (error) {
       console.error(`❌ Erreur notification vendeur ${seller.user.email}:`, error);
-      throw error;
+      return false; // Échec complet
     }
   }
 
