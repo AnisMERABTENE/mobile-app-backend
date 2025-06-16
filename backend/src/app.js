@@ -98,7 +98,8 @@ app.get('/auth/success', (req, res) => {
     <p>Tu peux maintenant utiliser ce token dans ton app mobile !</p>
   `);
 });
-
+// Route pour les tokens push
+app.use('/api/push-tokens', require('./routes/pushTokens'));
 app.get('/auth/error', (req, res) => {
   console.log('❌ Page /auth/error appelée');
   const { error } = req.query;

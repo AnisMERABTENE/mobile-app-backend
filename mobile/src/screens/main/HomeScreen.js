@@ -24,7 +24,7 @@ import colors, { getGradientString } from '../../styles/colors';
 
 const HomeScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
-  const { notifications, unreadCount } = useNotifications();
+  const { notifications, unreadCount, testPushNotification, getPushNotificationInfo } = useNotifications();
   const [sellerProfile, setSellerProfile] = useState(null);
   const [loadingSellerCheck, setLoadingSellerCheck] = useState(true);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
@@ -79,6 +79,59 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
+  const testPushNotifications = async () => {
+    try {
+      console.log('🔔 Test notifications push...');
+      
+      // Obtenir les infos du service
+      const info = getPushNotificationInfo();
+      console.log('📋 Info push service:', info);
+      
+      if (!info.isInitialized) {
+        Alert.alert(
+          '⚠️ Notifications non initialisées',
+          'Les notifications push ne sont pas encore prêtes. Attendez quelques secondes et réessayez.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      if (!info.isDevice) {
+        Alert.alert(
+          'ℹ️ Simulateur détecté',
+          'Les notifications push ne fonctionnent que sur un appareil physique.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      // Envoyer la notification test
+      const result = await testPushNotification();
+      
+      if (result.success) {
+        Alert.alert(
+          '✅ Test réussi !',
+          'Une notification push va apparaître dans 2 secondes sur votre téléphone !',
+          [{ text: 'Super !' }]
+        );
+      } else {
+        Alert.alert(
+          '❌ Test échoué',
+          `Erreur: ${result.error}`,
+          [{ text: 'OK' }]
+        );
+      }
+      
+    } catch (error) {
+      console.error('❌ Erreur test push:', error);
+      Alert.alert(
+        '❌ Erreur',
+        'Impossible de tester les notifications push',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
   const handleLogout = async () => {
     Alert.alert(
       'Déconnexion',
@@ -119,8 +172,6 @@ const HomeScreen = ({ navigation }) => {
     navigation.navigate('ManageSellerProfile');
   };
 
-  // ✅ NAVIGATION PROFONDE : Gérer le clic sur les notifications
-  // Dans HomeScreen.js, modifie la fonction handleNotificationPress comme ceci :
   const handleNotificationPress = (notification) => {
     console.log('📱 Notification cliquée:', notification);
     console.log('🔍 Structure notification:', JSON.stringify(notification, null, 2));
@@ -220,7 +271,6 @@ const HomeScreen = ({ navigation }) => {
           
           {/* Actions header */}
           <View style={styles.headerActions}>
-            {/* ✅ CORRIGÉ : NotificationBell avec onPress */}
             <NotificationBell 
               notifications={notifications}
               unreadCount={unreadCount}
@@ -250,6 +300,13 @@ const HomeScreen = ({ navigation }) => {
                 variant="outline"
                 onPress={testUploadConnection}
                 leftIcon="cloud-upload-outline"
+                style={styles.devButton}
+              />
+              <Button
+                title="🔔 Tester notifications push"
+                variant="outline"
+                onPress={testPushNotifications}
+                leftIcon="notifications-outline"
                 style={styles.devButton}
               />
             </View>
@@ -336,7 +393,6 @@ const HomeScreen = ({ navigation }) => {
         </View>
       </ScrollView>
 
-      {/* ✅ CORRIGÉ : Modal des notifications avec les bons noms de variables */}
       <NotificationsModal
         visible={showNotificationsModal}
         onClose={() => setShowNotificationsModal(false)}
@@ -438,6 +494,7 @@ const styles = StyleSheet.create({
   devButton: {
     backgroundColor: colors.warning + '10',
     borderColor: colors.warning,
+    marginBottom: 8,
   },
   sellerCard: {
     backgroundColor: colors.white,

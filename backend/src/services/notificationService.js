@@ -6,6 +6,9 @@ const {
   getConnectionStats 
 } = require('../config/socket');
 
+// 🔥 NOUVEAU : Import du service Expo Push
+const expoPushService = require('./expoPushService');
+
 /**
  * Service de notifications en temps réel
  */
@@ -127,41 +130,34 @@ class NotificationService {
         'specialties.category': request.category,
         'specialties.subCategories': request.subCategory,
         
-        // 4. Dernière activité récente (dans les 7 derniers jours)
-        lastActiveAt: { 
-          $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) 
-        }
+        // 4. Paramètres de notification activés
+        'notificationSettings.pushNotifications': true
       })
-      .populate('user', 'firstName lastName email isActive')
-      .lean(); // Plus rapide pour la lecture seule
+      .populate('user', 'firstName lastName email avatar')
+      .lean(); // Optimisation performance
 
-      // Filtrer les vendeurs avec utilisateurs actifs
-      const activeSellers = matchingSellers.filter(seller => 
-        seller.user && seller.user.isActive
-      );
+      console.log(`🎯 ${matchingSellers.length} vendeurs actifs trouvés`);
 
-      console.log(`🎯 ${activeSellers.length} vendeurs actifs trouvés`);
-
-      // Calculer la distance et le score de correspondance pour chaque vendeur
-      const sellersWithScore = activeSellers.map(seller => {
+      // Calculer la distance et le score pour chaque vendeur
+      const sellersWithScores = matchingSellers.map(seller => {
         const distance = this.calculateDistance(
           latitude, longitude,
           seller.location.coordinates[1], seller.location.coordinates[0]
         );
-
+        
         const matchScore = this.calculateMatchScore(seller, request, distance);
-
+        
         return {
           ...seller,
-          distance: Math.round(distance * 100) / 100, // Arrondir à 2 décimales
+          distance: Math.round(distance * 10) / 10, // Arrondir à 1 décimale
           matchScore
         };
       });
 
-      // Trier par score de correspondance (meilleur en premier)
-      sellersWithScore.sort((a, b) => b.matchScore - a.matchScore);
+      // Trier par score décroissant
+      sellersWithScores.sort((a, b) => b.matchScore - a.matchScore);
 
-      return sellersWithScore;
+      return sellersWithScores;
 
     } catch (error) {
       console.error('❌ Erreur recherche vendeurs:', error);
@@ -170,29 +166,25 @@ class NotificationService {
   }
 
   /**
-   * Calculer la distance entre deux points géographiques
+   * Calculer la distance entre deux points (en km)
    */
   calculateDistance(lat1, lon1, lat2, lon2) {
     const R = 6371; // Rayon de la Terre en km
-    const dLat = this.deg2rad(lat2 - lat1);
-    const dLon = this.deg2rad(lon2 - lon1);
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = 
       Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(this.deg2rad(lat1)) * Math.cos(this.deg2rad(lat2)) * 
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
       Math.sin(dLon/2) * Math.sin(dLon/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     return R * c;
   }
 
-  deg2rad(deg) {
-    return deg * (Math.PI/180);
-  }
-
   /**
-   * Calculer le score de correspondance vendeur/demande
+   * Calculer le score de correspondance d'un vendeur
    */
   calculateMatchScore(seller, request, distance) {
-    let score = 100; // Score de base
+    let score = 0;
 
     // 1. Score de distance (plus proche = meilleur)
     const distanceScore = Math.max(0, 50 - (distance * 2)); // -2 points par km
@@ -235,7 +227,7 @@ class NotificationService {
   }
 
   /**
-   * Envoyer une notification personnalisée à un vendeur
+   * 🔥 MODIFIÉ : Envoyer une notification personnalisée à un vendeur (Socket.IO + Push)
    */
   async sendPersonalizedNotification(seller, baseNotificationData, request) {
     try {
@@ -259,21 +251,51 @@ class NotificationService {
         }
       };
 
-      // Envoyer via Socket.IO
-      const success = sendNotificationToUser(
+      // 🔥 1. ENVOYER VIA SOCKET.IO (existant)
+      const socketSuccess = sendNotificationToUser(
         seller.user._id.toString(),
         'new_request_notification',
         personalizedData
       );
 
-      if (success) {
+      if (socketSuccess) {
         console.log(`📨 Notification envoyée à ${seller.user.email} (score: ${seller.matchScore})`);
-        
-        // Mettre à jour les stats du vendeur
-        await this.updateSellerStats(seller._id, 'notification_received');
       }
 
-      return success;
+      // 🔥 2. ENVOYER VIA EXPO PUSH (nouveau)
+      if (seller.expoPushToken && expoPushService.isValidExpoPushToken(seller.expoPushToken)) {
+        console.log(`🔔 Envoi notification push à ${seller.user.email}...`);
+        
+        // Créer la notification push formatée
+        const pushNotification = expoPushService.createNewRequestNotification({
+          _id: request._id,
+          title: request.title,
+          location: request.location,
+          category: request.category,
+          subCategory: request.subCategory
+        });
+        
+        // Envoyer la notification push
+        const pushResult = await expoPushService.sendPushNotification(
+          seller.expoPushToken,
+          pushNotification.title,
+          pushNotification.body,
+          pushNotification.data
+        );
+        
+        if (pushResult.success) {
+          console.log(`✅ Push notification envoyée à ${seller.user.email}`);
+        } else {
+          console.log(`⚠️ Échec push notification pour ${seller.user.email}:`, pushResult.error);
+        }
+      } else {
+        console.log(`ℹ️ Pas de token push valide pour ${seller.user.email}`);
+      }
+
+      // Mettre à jour les stats du vendeur
+      await this.updateSellerStats(seller._id, 'notification_received');
+
+      return socketSuccess; // On considère que c'est réussi si Socket.IO fonctionne
 
     } catch (error) {
       console.error(`❌ Erreur notification vendeur ${seller.user.email}:`, error);
@@ -357,6 +379,9 @@ class NotificationService {
             availableSellers: {
               $sum: { $cond: ['$isAvailable', 1, 0] }
             },
+            sellersWithPushTokens: {
+              $sum: { $cond: [{ $ne: ['$expoPushToken', null] }, 1, 0] }
+            },
             averageResponseRate: {
               $avg: {
                 $cond: [
@@ -375,8 +400,10 @@ class NotificationService {
         sellers: dbStats[0] || {
           totalActiveSellers: 0,
           availableSellers: 0,
+          sellersWithPushTokens: 0,
           averageResponseRate: 0
-        }
+        },
+        expoPush: expoPushService.getStats()
       };
 
     } catch (error) {

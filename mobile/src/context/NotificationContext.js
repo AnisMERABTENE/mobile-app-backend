@@ -166,13 +166,57 @@ export const NotificationProvider = ({ children }) => {
         dispatch({ type: NOTIFICATION_ACTIONS.SET_PUSH_INITIALIZED, payload: true });
         dispatch({ type: NOTIFICATION_ACTIONS.SET_PUSH_TOKEN, payload: result.token });
         
-        // TODO: Envoyer le token au backend plus tard
-        console.log('🎯 Token push reçu:', result.token?.substring(0, 20) + '...');
+        // 🔥 NOUVEAU : Envoyer le token au backend
+        await sendTokenToBackend(result.token);
+        
+        console.log('🎯 Token push configuré complètement');
       } else {
         console.log('⚠️ Échec init push notifications:', result.error);
       }
     } catch (error) {
       console.error('❌ Erreur init push notifications:', error);
+    }
+  };
+
+  /**
+   * Envoyer le token push au backend
+   */
+  const sendTokenToBackend = async (token) => {
+    try {
+      if (!token) {
+        console.log('⚠️ Pas de token à envoyer');
+        return;
+      }
+
+      console.log('📤 Envoi token push au backend...');
+      console.log('🎯 Token:', token.substring(0, 20) + '...');
+
+      // Import de l'API service
+      const apiRequest = (await import('../services/api')).default;
+      
+      // Préparer les infos du device
+      const deviceInfo = {
+        platform: Platform.OS,
+        appVersion: '1.0.0', // Tu peux le récupérer depuis app.json si besoin
+        timestamp: new Date().toISOString()
+      };
+
+      // Appel API pour enregistrer le token
+      const response = await apiRequest.post('/push-tokens/register', {
+        expoPushToken: token,
+        deviceInfo: deviceInfo
+      });
+
+      if (response.data.success) {
+        console.log('✅ Token push enregistré sur le backend !');
+        console.log('📋 Vendeur lié:', response.data.sellerProfile ? 'OUI' : 'NON');
+      } else {
+        console.log('❌ Échec enregistrement token:', response.data.error);
+      }
+
+    } catch (error) {
+      console.error('❌ Erreur envoi token backend:', error.response?.data?.error || error.message);
+      // Ne pas faire planter l'app si ça échoue
     }
   };
 
@@ -402,6 +446,32 @@ export const NotificationProvider = ({ children }) => {
   };
 
   /**
+   * Test de notification push depuis le backend
+   */
+  const testBackendPushNotification = async () => {
+    try {
+      console.log('🧪 Test notification backend...');
+
+      // Import de l'API service
+      const apiRequest = (await import('../services/api')).default;
+      
+      const response = await apiRequest.post('/push-tokens/test');
+      
+      if (response.data.success) {
+        console.log('✅ Test backend notification envoyé');
+        return { success: true, message: 'Notification backend envoyée !' };
+      } else {
+        console.log('❌ Échec test backend:', response.data.error);
+        return { success: false, error: response.data.error };
+      }
+
+    } catch (error) {
+      console.error('❌ Erreur test backend push:', error.response?.data?.error || error.message);
+      return { success: false, error: error.response?.data?.error || error.message };
+    }
+  };
+
+  /**
    * Obtenir les infos des notifications push
    */
   const getPushNotificationInfo = () => {
@@ -472,6 +542,8 @@ export const NotificationProvider = ({ children }) => {
     
     // Actions push notifications
     testPushNotification,
+    testBackendPushNotification,
+    sendTokenToBackend,
     getPushNotificationInfo,
     
     // Dispatch pour des actions avancées
