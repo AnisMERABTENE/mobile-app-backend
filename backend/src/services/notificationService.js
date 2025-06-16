@@ -98,24 +98,28 @@ class NotificationService {
   /**
    * Trouver les vendeurs correspondant à une demande
    */
-  async findMatchingSellers(request) {
+  // DANS notificationService.js, REMPLACE la fonction findMatchingSellers par :
+
+/**
+ * Trouver les vendeurs correspondant à une demande
+ */
+async findMatchingSellers(request) {
     try {
       const [longitude, latitude] = request.location.coordinates;
-      const radiusInMeters = request.radius * 1000; // Convertir km en mètres
-
+      const radiusInMeters = request.radius * 1000;
+  
       console.log('🔍 Recherche vendeurs avec critères:');
       console.log('  - Coordonnées:', latitude, longitude);
       console.log('  - Rayon:', radiusInMeters, 'mètres');
       console.log('  - Catégorie:', request.category);
       console.log('  - Sous-catégorie:', request.subCategory);
-
-      // Requête MongoDB avec géolocalisation et spécialités
-      const matchingSellers = await Seller.find({
-        // 1. Vendeur actif et disponible
-        status: { $in: ['active', 'pending'] }, // ✅ Accepte pending pour test
+  
+      // 🔥 NOUVEAU : Recherche en 2 étapes pour debug les tokens
+      
+      // Étape 1: Trouver tous les vendeurs correspondants (sans condition de token)
+      const allMatchingSellers = await Seller.find({
+        status: { $in: ['active', 'pending'] },
         isAvailable: true,
-        
-        // 2. Dans la zone géographique
         location: {
           $near: {
             $geometry: {
@@ -125,21 +129,42 @@ class NotificationService {
             $maxDistance: radiusInMeters
           }
         },
-        
-        // 3. Spécialité correspondante
         'specialties.category': request.category,
         'specialties.subCategories': request.subCategory,
-        
-        // 4. Paramètres de notification activés
-        'notificationSettings.pushNotifications': true
       })
       .populate('user', 'firstName lastName email avatar')
-      .lean(); // Optimisation performance
-
-      console.log(`🎯 ${matchingSellers.length} vendeurs actifs trouvés`);
-
-      // Calculer la distance et le score pour chaque vendeur
-      const sellersWithScores = matchingSellers.map(seller => {
+      .lean();
+  
+      console.log(`🎯 ${allMatchingSellers.length} vendeurs trouvés AVANT filtrage token`);
+  
+      // Étape 2: Debug les tokens pour chaque vendeur
+      const sellersWithTokens = [];
+      
+      for (const seller of allMatchingSellers) {
+        console.log(`🔍 Vendeur ${seller.user.email}:`);
+        console.log(`  - ID vendeur: ${seller._id}`);
+        console.log(`  - Token dans seller: ${seller.expoPushToken ? 'OUI' : 'NON'}`);
+        
+        // Vérifier aussi dans le modèle User
+        const userWithToken = await require('../models/User').findById(seller.user._id).select('expoPushToken');
+        console.log(`  - Token dans user: ${userWithToken?.expoPushToken ? 'OUI' : 'NON'}`);
+        
+        // Utiliser le token du seller OU du user
+        const finalToken = seller.expoPushToken || userWithToken?.expoPushToken;
+        
+        if (finalToken && expoPushService.isValidExpoPushToken(finalToken)) {
+          seller.expoPushToken = finalToken; // Assurer que le token est présent
+          sellersWithTokens.push(seller);
+          console.log(`  ✅ Token valide trouvé: ${finalToken.substring(0, 20)}...`);
+        } else {
+          console.log(`  ❌ Pas de token push valide`);
+        }
+      }
+  
+      console.log(`📊 Résultat final: ${sellersWithTokens.length}/${allMatchingSellers.length} vendeurs avec tokens valides`);
+  
+      // Calculer distance et score pour les vendeurs avec tokens
+      const sellersWithScores = sellersWithTokens.map(seller => {
         const distance = this.calculateDistance(
           latitude, longitude,
           seller.location.coordinates[1], seller.location.coordinates[0]
@@ -149,22 +174,21 @@ class NotificationService {
         
         return {
           ...seller,
-          distance: Math.round(distance * 10) / 10, // Arrondir à 1 décimale
+          distance: Math.round(distance * 10) / 10,
           matchScore
         };
       });
-
+  
       // Trier par score décroissant
       sellersWithScores.sort((a, b) => b.matchScore - a.matchScore);
-
+  
       return sellersWithScores;
-
+  
     } catch (error) {
       console.error('❌ Erreur recherche vendeurs:', error);
       throw error;
     }
   }
-
   /**
    * Calculer la distance entre deux points (en km)
    */

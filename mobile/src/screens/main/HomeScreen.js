@@ -237,8 +237,8 @@ const HomeScreen = ({ navigation }) => {
   };
   const testBackendPush = async () => {
     try {
-      const result = await testBackendPushNotification();
-      if (result.success) {
+       const result = await testPushNotification();
+        if (result.success) {
         Alert.alert('✅ Test backend réussi !', 'Notification envoyée depuis Railway !');
       } else {
         Alert.alert('❌ Test backend échoué', result.error);
