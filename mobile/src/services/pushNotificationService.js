@@ -153,7 +153,7 @@ class PushNotificationService {
       console.log('🎯 Génération token Expo Push...');
 
       // Obtenir les infos du projet Expo
-      const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.manifest?.extra?.eas?.projectId;
       console.log('📋 Project ID:', projectId);
 
       if (!projectId) {
