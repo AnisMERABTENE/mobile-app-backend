@@ -224,9 +224,9 @@ const sellerSchema = new mongoose.Schema({
   toJSON: {
     transform: function(doc, ret) {
       // Calculer des propriétés virtuelles
-      ret.responseRate = ret.stats.totalRequests > 0 
-        ? Math.round((ret.stats.respondedRequests / ret.stats.totalRequests) * 100)
-        : 0;
+      ret.responseRate = ret.stats && ret.stats.totalRequests > 0 
+  ? Math.round((ret.stats.respondedRequests / ret.stats.totalRequests) * 100)
+  : 0;
       
       ret.isOnline = ret.lastActiveAt && 
         (new Date() - new Date(ret.lastActiveAt)) < 15 * 60 * 1000; // 15 minutes

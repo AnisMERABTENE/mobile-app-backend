@@ -109,9 +109,9 @@ const createResponse = async (req, res) => {
    // 8. Envoyer notification au client
    try {
     const NotificationService = require('../services/notificationService');
-    await NotificationService.notifyResponseStatusChange(response, status, feedback);
+    await NotificationService.notifyNewResponse(newResponse);
   } catch (notifError) {
-    console.error('⚠️ Erreur notification changement statut (non-bloquant):', notifError);
+    console.error('⚠️ Erreur notification (non-bloquant):', notifError);
   }
 
     res.status(201).json({
