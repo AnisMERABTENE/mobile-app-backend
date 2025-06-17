@@ -152,16 +152,21 @@ const createResponse = async (req, res) => {
 
    // 8. Envoyer notification au client
    try {
-    const NotificationService = require('../services/notificationService');
-    const notificationResult = await NotificationService.notifyNewResponse(newResponse);
+    const notificationService = require('../services/notificationService'); // ✅ CORRECTION
+    console.log('📧 Appel notificationService.notifyNewResponse...');
+    
+    const notificationResult = await notificationService.notifyNewResponse(newResponse);
     
     if (notificationResult.success) {
       console.log('✅ Client notifié:', notificationResult.clientNotified);
+      console.log('📡 WebSocket envoyé:', notificationResult.socketSent);
+      console.log('📱 Push envoyé:', notificationResult.pushSent);
     } else {
       console.error('⚠️ Erreur notification (non-bloquant):', notificationResult.error);
     }
   } catch (notifError) {
-    console.error('⚠️ Erreur notification (non-bloquant):', notifError);
+    console.error('⚠️ Erreur notification (non-bloquant):', notifError.message);
+    console.error('⚠️ Stack:', notifError.stack);
   }
 
     res.status(201).json({
