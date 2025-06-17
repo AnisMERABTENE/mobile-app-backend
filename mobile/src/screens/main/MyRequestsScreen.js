@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import Loading from '../../components/Loading';
 import RequestService from '../../services/requestService';
+import ResponseService from '../../services/responseService';
 import SellerService from '../../services/sellerService';
 import colors, { getGradientString } from '../../styles/colors';
 
@@ -36,6 +37,15 @@ const MyRequestsScreen = ({ navigation }) => {
   // ✅ NOUVEAU : États pour mode vendeur
   const [receivedRequests, setReceivedRequests] = useState([]);
   const [sellerStats, setSellerStats] = useState(null);
+
+  // ✅ NOUVEAU : États pour les nouvelles catégories vendeur
+  const [myResponses, setMyResponses] = useState([]);
+  const [newSellerStats, setNewSellerStats] = useState({
+    untreated: 0,     // Non traité
+    responded: 0,     // Répondu  
+    completed: 0      // Terminé
+  });
+  const [selectedSellerFilter, setSelectedSellerFilter] = useState('untreated');
 
   useEffect(() => {
     checkSellerProfile();
@@ -123,14 +133,17 @@ const MyRequestsScreen = ({ navigation }) => {
     }
   };
 
-  // ✅ NOUVEAU : Charger les données vendeur (demandes reçues)
-  // ✅ NOUVEAU : Charger les données vendeur (demandes reçues) - VERSION ADAPTÉE
+  // ✅ MODIFIÉ : Charger les données vendeur avec mes réponses
   const loadSellerData = async () => {
     try {
       console.log('👨‍💼 Chargement des demandes reçues en tant que vendeur...');
       
-      // 1. Récupérer le profil vendeur
-      const profileResult = await SellerService.getMyProfile();
+      // Charger les demandes reçues ET mes réponses en parallèle
+      const [profileResult, responsesResult] = await Promise.all([
+        SellerService.getMyProfile(),
+        ResponseService.getMyResponses()
+      ]);
+
       if (!profileResult.success) {
         console.warn('⚠️ Aucun profil vendeur trouvé');
         setReceivedRequests([]);
@@ -140,42 +153,41 @@ const MyRequestsScreen = ({ navigation }) => {
 
       const sellerProfile = profileResult.data;
       console.log('✅ Profil vendeur récupéré:', sellerProfile.businessName);
-      console.log('📍 Localisation vendeur:', sellerProfile.location.city);
-      console.log('🏷️ Spécialités:', sellerProfile.specialties.length);
 
-      // 2. Récupérer les demandes reçues pour chaque spécialité
+      // Récupérer mes réponses
+      let allResponses = [];
+      if (responsesResult.success) {
+        allResponses = responsesResult.data;
+        console.log('✅ Mes réponses chargées:', allResponses.length);
+      }
+      setMyResponses(allResponses);
+
+      // Récupérer les demandes reçues pour chaque spécialité (code existant)
       const allRequests = [];
-      const processedRequestIds = new Set(); // Éviter les doublons
-
+      const processedRequestIds = new Set();
       const [longitude, latitude] = sellerProfile.location.coordinates;
-      const maxDistance = 25; // 25km par défaut
+      const maxDistance = 25;
 
       for (const specialty of sellerProfile.specialties) {
         for (const subCategory of specialty.subCategories) {
           try {
-            console.log(`🔍 Recherche demandes: ${specialty.category} > ${subCategory}`);
-
-            // Utiliser ton endpoint de recherche par proximité
             const searchResult = await RequestService.searchNearby(
               longitude,
               latitude,
-              maxDistance * 1000, // Convertir km en mètres
+              maxDistance * 1000,
               specialty.category,
-              1 // page
+              1
             );
 
             if (searchResult.success) {
-              // Filtrer par sous-catégorie exacte et éviter les doublons
               const filteredRequests = (searchResult.data.requests || []).filter(request => 
                 request.subCategory === subCategory && 
                 !processedRequestIds.has(request._id) &&
-                request.status === 'active' // Seulement les demandes actives
+                request.status === 'active'
               );
 
               filteredRequests.forEach(request => {
                 processedRequestIds.add(request._id);
-                
-                // Calculer la distance du vendeur
                 const distance = calculateDistance(
                   latitude, longitude,
                   request.location.coordinates[1], 
@@ -184,43 +196,37 @@ const MyRequestsScreen = ({ navigation }) => {
 
                 allRequests.push({
                   ...request,
-                  // Ajouter des métadonnées pour le vendeur
                   matchingSpecialty: {
                     category: specialty.category,
                     subCategory: subCategory
                   },
-                  distanceFromSeller: Math.round(distance * 100) / 100, // Arrondir à 2 décimales
+                  distanceFromSeller: Math.round(distance * 100) / 100,
                   matchScore: calculateMatchScore(request, specialty, distance)
                 });
               });
-
-              console.log(`✅ ${filteredRequests.length} demandes trouvées pour ${specialty.category} > ${subCategory}`);
             }
-
           } catch (subError) {
             console.warn(`⚠️ Erreur recherche ${specialty.category} > ${subCategory}:`, subError.message);
           }
         }
       }
 
-      // 3. Trier par score de correspondance et date
       allRequests.sort((a, b) => {
-        // D'abord par score de correspondance (décroissant)
         if (b.matchScore !== a.matchScore) {
           return b.matchScore - a.matchScore;
         }
-        // Puis par date (plus récent en premier)
         return new Date(b.createdAt) - new Date(a.createdAt);
       });
 
       console.log(`✅ ${allRequests.length} demandes reçues trouvées au total`);
       setReceivedRequests(allRequests);
 
-      // 4. Charger les stats vendeur
+      // ✅ NOUVEAU : Calculer les nouvelles statistiques
+      calculateNewSellerStats(allRequests, allResponses);
+
       const sellerStatsResult = await SellerService.getMyStats();
       if (sellerStatsResult.success) {
         setSellerStats(sellerStatsResult.data);
-        console.log('✅ Stats vendeur chargées');
       }
       
     } catch (error) {
@@ -228,6 +234,70 @@ const MyRequestsScreen = ({ navigation }) => {
       Alert.alert('Erreur', 'Impossible de charger les demandes reçues');
       setReceivedRequests([]);
       setSellerStats(null);
+    }
+  };
+
+  // ✅ NOUVEAU : Calculer les nouvelles statistiques vendeur
+  const calculateNewSellerStats = (requests, responses) => {
+    const respondedRequestIds = new Set(
+      responses.map(r => r.request._id || r.request)
+    );
+
+    // Non traité : demandes auxquelles je n'ai pas encore répondu
+    const untreated = requests.filter(req => 
+      !respondedRequestIds.has(req._id) && req.status === 'active'
+    ).length;
+
+    // Répondu : mes réponses en attente (pending)
+    const responded = responses.filter(r => r.status === 'pending').length;
+
+    // Terminé : mes réponses acceptées ou refusées
+    const completed = responses.filter(r => 
+      r.status === 'accepted' || r.status === 'declined'
+    ).length;
+
+    const stats = { untreated, responded, completed };
+    setNewSellerStats(stats);
+    console.log('📊 Nouvelles stats vendeur:', stats);
+  };
+
+  // ✅ NOUVEAU : Obtenir les demandes filtrées pour le mode vendeur
+  const getFilteredSellerRequests = () => {
+    if (!receivedRequests.length && !myResponses.length) return [];
+
+    const respondedRequestIds = new Set(
+      myResponses.map(r => r.request._id || r.request)
+    );
+
+    switch (selectedSellerFilter) {
+      case 'untreated':
+        // Demandes auxquelles je n'ai pas encore répondu
+        return receivedRequests.filter(req => 
+          !respondedRequestIds.has(req._id) && 
+          req.status === 'active' &&
+          req.user._id !== user._id // Pas mes propres demandes
+        );
+
+      case 'responded':
+        // Mes réponses en attente
+        return myResponses
+          .filter(r => r.status === 'pending')
+          .map(r => ({
+            ...r.request,
+            myResponse: r // Ajouter ma réponse pour l'affichage
+          }));
+
+      case 'completed':
+        // Mes réponses terminées (acceptées/refusées)
+        return myResponses
+          .filter(r => r.status === 'accepted' || r.status === 'declined')
+          .map(r => ({
+            ...r.request,
+            myResponse: r // Ajouter ma réponse pour l'affichage
+          }));
+
+      default:
+        return [];
     }
   };
 
@@ -316,17 +386,24 @@ const MyRequestsScreen = ({ navigation }) => {
 
   // ✅ MODIFIÉ : Fonction pour obtenir les données selon le mode
   const getCurrentRequests = () => {
-    const currentRequests = viewMode === 'client' ? requests : receivedRequests;
+    if (viewMode === 'seller') {
+      return getFilteredSellerRequests();
+    }
     
+    const currentRequests = requests;
     if (selectedFilter === 'all') return currentRequests;
     return currentRequests.filter(request => request.status === selectedFilter);
   };
 
   const getCurrentStats = () => {
-    return viewMode === 'client' ? stats : sellerStats;
+    if (viewMode === 'seller') {
+      return newSellerStats;
+    }
+    return stats;
   };
+  
   // ✅ AJOUTER CETTE FONCTION MANQUANTE
-const handleRefresh = async () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
@@ -419,6 +496,33 @@ const handleRefresh = async () => {
     }
   };
 
+  // ✅ NOUVEAU : Couleurs pour les statuts de réponse vendeur
+  const getResponseStatusColor = (status) => {
+    switch (status) {
+      case 'pending':
+        return colors.warning;
+      case 'accepted':
+        return colors.success;
+      case 'declined':
+        return colors.danger;
+      default:
+        return colors.gray[500];
+    }
+  };
+
+  const getResponseStatusText = (status) => {
+    switch (status) {
+      case 'pending':
+        return 'En attente';
+      case 'accepted':
+        return 'Acceptée';
+      case 'declined':
+        return 'Refusée';
+      default:
+        return status;
+    }
+  };
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('fr-FR', {
@@ -430,12 +534,18 @@ const handleRefresh = async () => {
 
   // ✅ MODIFIÉ : Filtres adaptés au mode
   const getFilters = () => {
-    const currentRequests = viewMode === 'client' ? requests : receivedRequests;
+    if (viewMode === 'seller') {
+      return [
+        { id: 'untreated', label: 'Non traité', count: newSellerStats.untreated },
+        { id: 'responded', label: 'Répondu', count: newSellerStats.responded },
+        { id: 'completed', label: 'Terminé', count: newSellerStats.completed },
+      ];
+    }
     
     const filters = [
-      { id: 'all', label: 'Toutes', count: currentRequests.length },
-      { id: 'active', label: 'Actives', count: currentRequests.filter(r => r.status === 'active').length },
-      { id: 'completed', label: 'Terminées', count: currentRequests.filter(r => r.status === 'completed').length },
+      { id: 'all', label: 'Toutes', count: requests.length },
+      { id: 'active', label: 'Actives', count: requests.filter(r => r.status === 'active').length },
+      { id: 'completed', label: 'Terminées', count: requests.filter(r => r.status === 'completed').length },
     ];
     
     return filters;
@@ -523,25 +633,39 @@ const handleRefresh = async () => {
         {/* ✅ MODIFIÉ : Statistiques adaptées au mode */}
         {currentStats && (
           <View style={styles.statsContainer}>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{currentStats.total || 0}</Text>
-              <Text style={styles.statLabel}>Total</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{currentStats.active || 0}</Text>
-              <Text style={styles.statLabel}>Actives</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>
-                {viewMode === 'client' 
-                  ? (currentStats.totalViews || 0)
-                  : (currentStats.totalResponses || 0)
-                }
-              </Text>
-              <Text style={styles.statLabel}>
-                {viewMode === 'client' ? 'Vues' : 'Réponses'}
-              </Text>
-            </View>
+            {viewMode === 'client' ? (
+              // Stats mode client (existantes)
+              <>
+                <View style={styles.statCard}>
+                  <Text style={styles.statNumber}>{currentStats.total || 0}</Text>
+                  <Text style={styles.statLabel}>Total</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statNumber}>{currentStats.active || 0}</Text>
+                  <Text style={styles.statLabel}>Actives</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statNumber}>{currentStats.totalViews || 0}</Text>
+                  <Text style={styles.statLabel}>Vues</Text>
+                </View>
+              </>
+            ) : (
+              // ✅ NOUVEAU : Stats mode vendeur
+              <>
+                <View style={styles.statCard}>
+                  <Text style={styles.statNumber}>{currentStats.untreated}</Text>
+                  <Text style={styles.statLabel}>Non traité</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statNumber}>{currentStats.responded}</Text>
+                  <Text style={styles.statLabel}>Répondu</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statNumber}>{currentStats.completed}</Text>
+                  <Text style={styles.statLabel}>Terminé</Text>
+                </View>
+              </>
+            )}
           </View>
         )}
 
@@ -557,13 +681,19 @@ const handleRefresh = async () => {
               key={filter.id}
               style={[
                 styles.filterButton,
-                selectedFilter === filter.id && styles.activeFilterButton
+                (viewMode === 'client' ? selectedFilter : selectedSellerFilter) === filter.id && styles.activeFilterButton
               ]}
-              onPress={() => setSelectedFilter(filter.id)}
+              onPress={() => {
+                if (viewMode === 'client') {
+                  setSelectedFilter(filter.id);
+                } else {
+                  setSelectedSellerFilter(filter.id);
+                }
+              }}
             >
               <Text style={[
                 styles.filterText,
-                selectedFilter === filter.id && styles.activeFilterText
+                (viewMode === 'client' ? selectedFilter : selectedSellerFilter) === filter.id && styles.activeFilterText
               ]}>
                 {filter.label} ({filter.count})
               </Text>
@@ -581,15 +711,20 @@ const handleRefresh = async () => {
                 color={colors.gray[400]} 
               />
               <Text style={styles.emptyTitle}>
-                {viewMode === 'client' ? 'Aucune demande' : 'Aucune demande reçue'}
+                {viewMode === 'client' ? 'Aucune demande' : 
+                 selectedSellerFilter === 'untreated' ? 'Aucune demande à traiter' :
+                 selectedSellerFilter === 'responded' ? 'Aucune réponse en attente' :
+                 'Aucune demande terminée'}
               </Text>
               <Text style={styles.emptySubtitle}>
-                {selectedFilter === 'all' 
-                  ? (viewMode === 'client' 
+                {viewMode === 'client' 
+                  ? (selectedFilter === 'all' 
                       ? 'Vous n\'avez pas encore créé de demande'
-                      : 'Aucune demande reçue dans votre zone'
+                      : `Aucune demande ${filters.find(f => f.id === selectedFilter)?.label.toLowerCase()}`
                     )
-                  : `Aucune demande ${filters.find(f => f.id === selectedFilter)?.label.toLowerCase()}`
+                  : selectedSellerFilter === 'untreated'
+                    ? 'Les nouvelles demandes dans votre zone apparaîtront ici'
+                    : 'Vos demandes traitées apparaîtront ici'
                 }
               </Text>
               
@@ -622,17 +757,37 @@ const handleRefresh = async () => {
                         {formatDate(request.createdAt)}
                       </Text>
                       <View style={styles.separator} />
-                      <View style={[
-                        styles.statusBadge,
-                        { backgroundColor: getStatusColor(request.status) + '20' }
-                      ]}>
-                        <Text style={[
-                          styles.statusText,
-                          { color: getStatusColor(request.status) }
+                      
+                      {/* ✅ NOUVEAU : Affichage conditionnel selon le mode et filtre */}
+                      {viewMode === 'seller' && selectedSellerFilter === 'untreated' ? (
+                        <View style={[styles.statusBadge, { backgroundColor: colors.warning + '20' }]}>
+                          <Text style={[styles.statusText, { color: colors.warning }]}>Non traité</Text>
+                        </View>
+                      ) : viewMode === 'seller' && request.myResponse ? (
+                        <View style={[
+                          styles.statusBadge, 
+                          { backgroundColor: getResponseStatusColor(request.myResponse.status) + '20' }
                         ]}>
-                          {getStatusText(request.status)}
-                        </Text>
-                      </View>
+                          <Text style={[
+                            styles.statusText,
+                            { color: getResponseStatusColor(request.myResponse.status) }
+                          ]}>
+                            {getResponseStatusText(request.myResponse.status)}
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={[
+                          styles.statusBadge,
+                          { backgroundColor: getStatusColor(request.status) + '20' }
+                        ]}>
+                          <Text style={[
+                            styles.statusText,
+                            { color: getStatusColor(request.status) }
+                          ]}>
+                            {getStatusText(request.status)}
+                          </Text>
+                        </View>
+                      )}
                     </View>
                   </View>
                   
@@ -645,6 +800,19 @@ const handleRefresh = async () => {
                 <Text style={styles.requestDescription} numberOfLines={3}>
                   {request.description}
                 </Text>
+
+                {/* ✅ NOUVEAU : Afficher ma réponse si elle existe */}
+                {viewMode === 'seller' && request.myResponse && selectedSellerFilter !== 'untreated' && (
+                  <View style={styles.myResponsePreview}>
+                    <Text style={styles.myResponseLabel}>Ma réponse :</Text>
+                    <Text style={styles.myResponseText} numberOfLines={1}>
+                      {request.myResponse.message}
+                    </Text>
+                    <Text style={styles.myResponsePrice}>
+                      {request.myResponse.price}€
+                    </Text>
+                  </View>
+                )}
 
                 {/* Photos - ✅ VERSION ULTRA CORRIGÉE */}
                 {request.photos && request.photos.length > 0 && (
@@ -698,23 +866,39 @@ const handleRefresh = async () => {
                       <Ionicons name="eye-outline" size={16} color={colors.gray[500]} />
                       <Text style={styles.statText}>{request.viewCount || 0} vues</Text>
                     </View>
-                    <View style={styles.statItem}>
-                      <Ionicons name="location-outline" size={16} color={colors.gray[500]} />
-                      <Text style={styles.statText}>{request.radius} km</Text>
-                    </View>
-                    {request.responseCount > 0 && (
-                      <View style={styles.statItem}>
-                        <Ionicons name="chatbubble-outline" size={16} color={colors.success} />
-                        <Text style={[styles.statText, { color: colors.success }]}>
-                          {request.responseCount} réponse{request.responseCount > 1 ? 's' : ''}
-                        </Text>
-                      </View>
+                    {viewMode === 'seller' ? (
+                      <>
+                        <View style={styles.statItem}>
+                          <Ionicons name="location-outline" size={16} color={colors.gray[500]} />
+                          <Text style={styles.statText}>{request.location?.city}</Text>
+                        </View>
+                        <View style={styles.statItem}>
+                          <Ionicons name="chatbubbles-outline" size={16} color={colors.gray[500]} />
+                          <Text style={styles.statText}>{request.responseCount || 0} réponses</Text>
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        <View style={styles.statItem}>
+                          <Ionicons name="location-outline" size={16} color={colors.gray[500]} />
+                          <Text style={styles.statText}>{request.radius} km</Text>
+                        </View>
+                        {request.responseCount > 0 && (
+                          <View style={styles.statItem}>
+                            <Ionicons name="chatbubble-outline" size={16} color={colors.success} />
+                            <Text style={[styles.statText, { color: colors.success }]}>
+                              {request.responseCount} réponse{request.responseCount > 1 ? 's' : ''}
+                            </Text>
+                          </View>
+                        )}
+                      </>
                     )}
                   </View>
                   
                   {/* ✅ NOUVEAU : Action différente selon le mode */}
                   <Text style={styles.viewDetailsText}>
-                    {viewMode === 'client' ? 'Voir détails' : 'Répondre'}
+                    {viewMode === 'client' ? 'Voir détails' : 
+                     selectedSellerFilter === 'untreated' ? 'Répondre' : 'Voir détails'}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -928,6 +1112,33 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 16,
   },
+  
+  // ✅ NOUVEAU : Styles pour l'aperçu de ma réponse
+  myResponsePreview: {
+    backgroundColor: colors.gray[50],
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+  },
+  myResponseLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text.secondary,
+    marginBottom: 4,
+  },
+  myResponseText: {
+    fontSize: 14,
+    color: colors.text.primary,
+    marginBottom: 4,
+  },
+  myResponsePrice: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.success,
+  },
+  
   photosContainer: {
     marginBottom: 16,
   },
