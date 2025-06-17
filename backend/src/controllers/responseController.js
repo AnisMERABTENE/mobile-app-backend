@@ -4,14 +4,15 @@ const Seller = require('../models/Seller');
 const User = require('../models/User');
 
 /**
- * Créer une nouvelle réponse à une demande
+ * Créer une nouvelle réponse à une demande - VERSION CORRIGÉE POUR PHOTOS
  */
 const createResponse = async (req, res) => {
   try {
-    const { requestId, message, price, photos = [] } = req.body;
+    const { requestId, message, price, photoUrls = [] } = req.body; // ✅ CORRECTION : photoUrls au lieu de photos
 
     console.log('📝 Création réponse pour demande:', requestId);
     console.log('👤 Vendeur:', req.user.email);
+    console.log('📸 URLs photos reçues:', photoUrls.length, 'photos');
 
     // 1. Vérifier que la demande existe et est active
     const request = await Request.findById(requestId);
@@ -71,14 +72,56 @@ const createResponse = async (req, res) => {
       });
     }
 
-    // 6. Créer la réponse
+    // ✅ 6. NOUVELLE SECTION : Valider et formater les photos
+    let validatedPhotos = [];
+    
+    console.log('🔍 Validation des photos de la réponse...');
+    console.log('📸 URLs reçues:', JSON.stringify(photoUrls, null, 2));
+
+    if (Array.isArray(photoUrls) && photoUrls.length > 0) {
+      for (let i = 0; i < photoUrls.length; i++) {
+        const photoUrl = photoUrls[i];
+        console.log(`📸 Validation photo ${i + 1}:`, photoUrl);
+
+        // ✅ VÉRIFICATION CRITIQUE : Photo doit avoir une URL valide
+        if (!photoUrl || typeof photoUrl !== 'string' || photoUrl.trim() === '') {
+          console.warn(`⚠️ Photo ${i + 1} ignorée - URL manquante:`, photoUrl);
+          continue;
+        }
+
+        // ✅ Vérifier que l'URL est sécurisée et Cloudinary
+        if (!photoUrl.startsWith('https://res.cloudinary.com/')) {
+          console.warn(`⚠️ Photo ${i + 1} ignorée - URL non Cloudinary:`, photoUrl);
+          continue;
+        }
+
+        // ✅ FORMATAGE CORRECT POUR MONGODB : respecter le schéma Response
+        const validatedPhoto = {
+          url: photoUrl.trim(),
+          alt: `Photo de la réponse ${i + 1}`
+        };
+
+        validatedPhotos.push(validatedPhoto);
+        console.log(`✅ Photo ${i + 1} validée:`, validatedPhoto.url.substring(0, 80) + '...');
+      }
+
+      console.log('📊 Résultat validation photos réponse:', {
+        photosInitiales: photoUrls.length,
+        photosValides: validatedPhotos.length,
+        photosIgnorees: photoUrls.length - validatedPhotos.length
+      });
+    } else {
+      console.log('ℹ️ Aucune photo à valider pour cette réponse');
+    }
+
+    // 6. Créer la réponse avec photos validées
     const responseData = {
       request: requestId,
       seller: seller._id,
       sellerUser: req.user._id,
       message: message.trim(),
       price: parseFloat(price),
-      photos: photos || []
+      photos: validatedPhotos // ✅ CORRECTION : Utiliser les photos validées au lieu de photos brutes
     };
 
     const newResponse = new Response(responseData);
@@ -104,7 +147,8 @@ const createResponse = async (req, res) => {
       }
     ]);
 
-    console.log('✅ Réponse créée:', newResponse._id);
+    console.log('✅ Réponse créée avec photos:', newResponse._id);
+    console.log('📸 Photos sauvegardées:', newResponse.photos.length);
 
    // 8. Envoyer notification au client
    try {
@@ -124,6 +168,7 @@ const createResponse = async (req, res) => {
     
     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map(e => e.message);
+      console.error('❌ Erreurs de validation MongoDB:', errors); // ✅ AJOUT : Log plus détaillé
       return res.status(400).json({
         error: 'Erreurs de validation',
         details: errors
