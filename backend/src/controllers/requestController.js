@@ -45,6 +45,48 @@ const createRequest = async (req, res) => {
       });
     }
 
+    // ✅ 3.5. CORRECTION DES PHOTOS - Valider et formater les photos avant création
+    let validatedPhotos = [];
+    
+    console.log('🔍 Validation des photos de la demande...');
+    console.log('📸 Photos reçues:', JSON.stringify(photos, null, 2));
+
+    if (Array.isArray(photos) && photos.length > 0) {
+      for (let i = 0; i < photos.length; i++) {
+        const photo = photos[i];
+        console.log(`📸 Validation photo ${i + 1}:`, photo);
+
+        // ✅ VÉRIFICATION CRITIQUE : Photo doit avoir une URL valide
+        if (!photo || !photo.url || typeof photo.url !== 'string' || photo.url.trim() === '') {
+          console.warn(`⚠️ Photo ${i + 1} ignorée - URL manquante:`, photo);
+          continue; // Ignorer cette photo plutôt que de faire planter
+        }
+
+        // ✅ Vérifier que l'URL est sécurisée
+        if (!photo.url.startsWith('https://')) {
+          console.warn(`⚠️ Photo ${i + 1} ignorée - URL non sécurisée:`, photo.url);
+          continue;
+        }
+
+        // ✅ FORMATAGE CORRECT POUR MONGODB : respecter le schéma
+        const validatedPhoto = {
+          url: photo.url.trim(),
+          alt: (photo.alt && typeof photo.alt === 'string') ? photo.alt.trim() : 'Photo de la demande'
+        };
+
+        validatedPhotos.push(validatedPhoto);
+        console.log(`✅ Photo ${i + 1} validée:`, validatedPhoto);
+      }
+
+      console.log('📊 Résultat validation photos:', {
+        photosInitiales: photos.length,
+        photosValides: validatedPhotos.length,
+        photosIgnorees: photos.length - validatedPhotos.length
+      });
+    } else {
+      console.log('ℹ️ Aucune photo à valider pour cette demande');
+    }
+
     // 4. Créer la demande
     const newRequest = new Request({
       user: req.user._id,
@@ -52,7 +94,7 @@ const createRequest = async (req, res) => {
       description: description.trim(),
       category,
       subCategory,
-      photos: photos || [],
+      photos: validatedPhotos, // ✅ CORRECTION : Utiliser les photos validées
       location: {
         type: 'Point',
         coordinates: location.coordinates,
