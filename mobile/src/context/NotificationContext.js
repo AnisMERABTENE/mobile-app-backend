@@ -556,7 +556,41 @@ export const NotificationProvider = ({ children }) => {
     </NotificationContext.Provider>
   );
 };
-
+/**
+ * ✅ NOUVEAU : Gérer les notifications de réponses reçues
+ */
+const handleNewResponseNotification = (data) => {
+    console.log('📧 Notification réponse reçue:', data);
+    
+    const notification = {
+      id: Date.now().toString(),
+      type: 'new_response',
+      title: '🎉 Nouvelle réponse !',
+      message: `${data.seller.businessName} a répondu à votre demande "${data.request.title}" pour ${data.response.price}€`,
+      data: data,
+      timestamp: new Date().toISOString(),
+      isRead: false,
+      navigation: data.navigation // ✅ Navigation directe vers l'onglet réponses
+    };
+  
+    // Ajouter à la liste des notifications
+    dispatch({ 
+      type: NOTIFICATION_ACTIONS.ADD_NOTIFICATION, 
+      payload: notification 
+    });
+  
+    // Afficher notification locale
+    showLocalNotification(notification.title, notification.message, data);
+  
+    // Jouer son/vibration
+    playNotificationSound();
+  };
+  
+  // Dans ta fonction connectSocket, ajouter ce listener :
+  socket.on('new_response_notification', (data) => {
+    console.log('📧 Nouvelle notification réponse reçue:', data);
+    handleNewResponseNotification(data);
+  });
 // Hook pour utiliser le contexte
 export const useNotifications = () => {
   const context = useContext(NotificationContext);

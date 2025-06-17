@@ -153,7 +153,13 @@ const createResponse = async (req, res) => {
    // 8. Envoyer notification au client
    try {
     const NotificationService = require('../services/notificationService');
-    await NotificationService.notifyNewResponse(newResponse);
+    const notificationResult = await NotificationService.notifyNewResponse(newResponse);
+    
+    if (notificationResult.success) {
+      console.log('✅ Client notifié:', notificationResult.clientNotified);
+    } else {
+      console.error('⚠️ Erreur notification (non-bloquant):', notificationResult.error);
+    }
   } catch (notifError) {
     console.error('⚠️ Erreur notification (non-bloquant):', notifError);
   }

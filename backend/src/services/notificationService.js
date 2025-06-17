@@ -614,6 +614,219 @@ class NotificationService {
       default: return 'medium';
     }
   }
+  /**
+ * 🔥 NOUVEAU : Notifier le client qu'un vendeur a répondu à sa demande
+ * ✅ S'ajoute à ton système existant SANS rien casser
+ */
+async notifyNewResponse(response) {
+    try {
+      console.log('📧 Notification nouvelle réponse:', response._id);
+  
+      // 1. Récupérer les données complètes avec populate
+      await response.populate([
+        {
+          path: 'request',
+          select: 'title user category subCategory location',
+          populate: {
+            path: 'user',
+            select: 'firstName lastName email expoPushToken' // ✅ Utilise ton système existant
+          }
+        },
+        {
+          path: 'seller',
+          select: 'businessName phone isAvailable'
+        },
+        {
+          path: 'sellerUser',
+          select: 'firstName lastName email avatar'
+        }
+      ]);
+  
+      const client = response.request.user;
+      const vendeur = response.sellerUser;
+      const businessName = response.seller.businessName;
+  
+      console.log('👤 Client à notifier:', client.email);
+      console.log('🔧 Vendeur qui répond:', vendeur.email);
+  
+      // 2. Préparer les données de notification (même format que ton système)
+      const notificationData = {
+        type: 'new_response',
+        response: {
+          id: response._id,
+          message: response.message.substring(0, 150) + (response.message.length > 150 ? '...' : ''),
+          price: response.price,
+          photoCount: response.photos ? response.photos.length : 0,
+          createdAt: response.createdAt
+        },
+        request: {
+          id: response.request._id,
+          title: response.request.title,
+          category: response.request.category,
+          location: response.request.location
+        },
+        seller: {
+          businessName: businessName,
+          firstName: vendeur.firstName,
+          lastName: vendeur.lastName,
+          avatar: vendeur.avatar
+        },
+        navigation: { // ✅ Navigation directe vers l'onglet réponses
+          screen: 'RequestDetail',
+          params: {
+            requestId: response.request._id,
+            tab: 'responses'
+          }
+        },
+        metadata: {
+          timestamp: new Date().toISOString(),
+          priority: 'high'
+        }
+      };
+  
+      // 3. ✅ Notification WebSocket (utilise ton système existant)
+      const socketSuccess = sendNotificationToUser(
+        client._id.toString(),
+        'new_response_notification', // ✅ Nouvel événement
+        notificationData
+      );
+  
+      console.log('📡 Notification WebSocket client:', socketSuccess ? 'Envoyée' : 'Client non connecté');
+  
+      // 4. ✅ Notification Push (utilise ton expoPushService existant)
+      if (client.expoPushToken && expoPushService.isValidExpoPushToken(client.expoPushToken)) {
+        
+        const pushResult = await expoPushService.sendPushNotification(
+          client.expoPushToken,
+          '🎉 Nouvelle réponse reçue !',
+          `${businessName} a répondu à votre demande "${response.request.title}" - ${response.price}€`,
+          notificationData // ✅ Même data pour cohérence
+        );
+  
+        console.log('📱 Résultat push client:', pushResult.success ? 'Envoyée' : pushResult.error);
+      }
+  
+      return {
+        success: true,
+        clientNotified: client.email,
+        socketSent: socketSuccess,
+        pushSent: !!client.expoPushToken
+      };
+  
+    } catch (error) {
+      console.error('❌ Erreur notification nouvelle réponse:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }/**
+ * 🔥 NOUVEAU : Notifier le client qu'un vendeur a répondu à sa demande
+ * ✅ S'ajoute à ton système existant SANS rien casser
+ */
+async notifyNewResponse(response) {
+    try {
+      console.log('📧 Notification nouvelle réponse:', response._id);
+  
+      // 1. Récupérer les données complètes avec populate
+      await response.populate([
+        {
+          path: 'request',
+          select: 'title user category subCategory location',
+          populate: {
+            path: 'user',
+            select: 'firstName lastName email expoPushToken' // ✅ Utilise ton système existant
+          }
+        },
+        {
+          path: 'seller',
+          select: 'businessName phone isAvailable'
+        },
+        {
+          path: 'sellerUser',
+          select: 'firstName lastName email avatar'
+        }
+      ]);
+  
+      const client = response.request.user;
+      const vendeur = response.sellerUser;
+      const businessName = response.seller.businessName;
+  
+      console.log('👤 Client à notifier:', client.email);
+      console.log('🔧 Vendeur qui répond:', vendeur.email);
+  
+      // 2. Préparer les données de notification (même format que ton système)
+      const notificationData = {
+        type: 'new_response',
+        response: {
+          id: response._id,
+          message: response.message.substring(0, 150) + (response.message.length > 150 ? '...' : ''),
+          price: response.price,
+          photoCount: response.photos ? response.photos.length : 0,
+          createdAt: response.createdAt
+        },
+        request: {
+          id: response.request._id,
+          title: response.request.title,
+          category: response.request.category,
+          location: response.request.location
+        },
+        seller: {
+          businessName: businessName,
+          firstName: vendeur.firstName,
+          lastName: vendeur.lastName,
+          avatar: vendeur.avatar
+        },
+        navigation: { // ✅ Navigation directe vers l'onglet réponses
+          screen: 'RequestDetail',
+          params: {
+            requestId: response.request._id,
+            tab: 'responses'
+          }
+        },
+        metadata: {
+          timestamp: new Date().toISOString(),
+          priority: 'high'
+        }
+      };
+  
+      // 3. ✅ Notification WebSocket (utilise ton système existant)
+      const socketSuccess = sendNotificationToUser(
+        client._id.toString(),
+        'new_response_notification', // ✅ Nouvel événement
+        notificationData
+      );
+  
+      console.log('📡 Notification WebSocket client:', socketSuccess ? 'Envoyée' : 'Client non connecté');
+  
+      // 4. ✅ Notification Push (utilise ton expoPushService existant)
+      if (client.expoPushToken && expoPushService.isValidExpoPushToken(client.expoPushToken)) {
+        
+        const pushResult = await expoPushService.sendPushNotification(
+          client.expoPushToken,
+          '🎉 Nouvelle réponse reçue !',
+          `${businessName} a répondu à votre demande "${response.request.title}" - ${response.price}€`,
+          notificationData // ✅ Même data pour cohérence
+        );
+  
+        console.log('📱 Résultat push client:', pushResult.success ? 'Envoyée' : pushResult.error);
+      }
+  
+      return {
+        success: true,
+        clientNotified: client.email,
+        socketSent: socketSuccess,
+        pushSent: !!client.expoPushToken
+      };
+  
+    } catch (error) {
+      console.error('❌ Erreur notification nouvelle réponse:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
 
   /**
    * Mettre à jour les statistiques d'un vendeur

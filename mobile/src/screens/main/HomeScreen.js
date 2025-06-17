@@ -208,7 +208,39 @@ const HomeScreen = ({ navigation }) => {
           ]
         );
       }
-    } else {
+    } 
+    // ✅ NOUVEAU : Gestion des notifications de réponses reçues
+    else if (notification.type === 'new_response') {
+      // Essayer plusieurs chemins pour l'ID de la demande
+      const requestId = notification.data?.request?.id || 
+                       notification.data?.request?._id ||
+                       notification.data?.navigation?.params?.requestId;
+      
+      if (requestId) {
+        console.log('🔄 Redirection vers demande avec réponses ID:', requestId);
+        
+        // Navigation directe vers l'onglet réponses
+        navigation.navigate('RequestDetail', { 
+          requestId: requestId,
+          tab: 'responses' // ✅ Ouvre directement l'onglet réponses
+        });
+      } else {
+        console.log('⚠️ Pas d\'ID de demande trouvé pour la réponse');
+        Alert.alert(
+          'Réponse introuvable',
+          'Impossible de trouver cette réponse. Redirection vers vos demandes.',
+          [
+            { 
+              text: 'OK', 
+              onPress: () => {
+                navigation.navigate('MainTabs');
+              }
+            }
+          ]
+        );
+      }
+    } 
+    else {
       console.log('⚠️ Type de notification non géré:', notification.type);
       Alert.alert('Notification', 'Type de notification non pris en charge');
     }
