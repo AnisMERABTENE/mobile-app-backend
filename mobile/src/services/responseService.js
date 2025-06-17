@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import PhotoUploadService from './photoUploadService'; // ✅ AJOUT : Import du service d'upload
 
 // ✅ CORRECTION : Utiliser l'URL directe au lieu d'importer depuis config
 const API_BASE_URL = 'https://mobile-app-backend-production-5d60.up.railway.app/api';
@@ -29,17 +30,88 @@ class ResponseService {
   }
 
   /**
-   * Créer une nouvelle réponse à une demande
+   * ✅ NOUVELLE FONCTION : Upload des photos avant création de réponse
+   */
+  async uploadPhotosForResponse(photos, onProgress = null) {
+    try {
+      if (!photos || photos.length === 0) {
+        console.log('ℹ️ Aucune photo à uploader pour cette réponse');
+        return { success: true, photoUrls: [] };
+      }
+
+      console.log('📤 Upload de', photos.length, 'photos pour la réponse...');
+      const uploadedUrls = [];
+      const totalPhotos = photos.length;
+
+      for (let i = 0; i < photos.length; i++) {
+        const photo = photos[i];
+        console.log(`📤 Upload photo ${i + 1}/${totalPhotos}:`, photo.name);
+
+        // Progress callback pour chaque photo
+        const photoProgress = (progress) => {
+          const overallProgress = (i + progress) / totalPhotos;
+          if (onProgress) onProgress(overallProgress);
+        };
+
+        const uploadResult = await PhotoUploadService.uploadPhoto(photo, photoProgress);
+
+        if (uploadResult.success) {
+          uploadedUrls.push(uploadResult.photoUrl);
+          console.log(`✅ Photo ${i + 1} uploadée:`, uploadResult.photoUrl.substring(0, 80) + '...');
+        } else {
+          console.error(`❌ Échec upload photo ${i + 1}:`, uploadResult.error);
+          throw new Error(`Échec upload photo ${i + 1}: ${uploadResult.error}`);
+        }
+      }
+
+      console.log('✅ Toutes les photos uploadées avec succès:', uploadedUrls.length);
+      return { success: true, photoUrls: uploadedUrls };
+
+    } catch (error) {
+      console.error('❌ Erreur upload photos réponse:', error);
+      return { 
+        success: false, 
+        error: error.message || 'Erreur lors de l\'upload des photos' 
+      };
+    }
+  }
+
+  /**
+   * Créer une nouvelle réponse à une demande - VERSION CORRIGÉE AVEC UPLOAD PHOTOS
    * @param {string} requestId - ID de la demande
    * @param {string} message - Message de la réponse
    * @param {number} price - Prix proposé
-   * @param {Array} photos - Tableau des photos
+   * @param {Array} photos - Tableau des photos (objets locaux)
+   * @param {Function} onProgress - Callback pour le progress d'upload
    * @returns {Promise<Object>} Résultat de l'opération
    */
-  async createResponse(requestId, message, price, photos = []) {
+  async createResponse(requestId, message, price, photos = [], onProgress = null) {
     try {
-      console.log('📤 Envoi réponse pour demande:', requestId);
+      console.log('📤 Création réponse pour demande:', requestId);
       console.log('📝 Données:', { message: message.substring(0, 50) + '...', price, photoCount: photos.length });
+
+      // ✅ ÉTAPE 1 : Upload des photos AVANT création de la réponse
+      let photoUrls = [];
+      if (photos && photos.length > 0) {
+        console.log('📤 Étape 1: Upload des photos...');
+        
+        const uploadResult = await this.uploadPhotosForResponse(photos, (progress) => {
+          // 80% du temps pour l'upload des photos, 20% pour la création de la réponse
+          const overallProgress = progress * 0.8;
+          if (onProgress) onProgress(overallProgress);
+        });
+
+        if (!uploadResult.success) {
+          throw new Error(uploadResult.error);
+        }
+
+        photoUrls = uploadResult.photoUrls;
+        console.log('✅ Photos uploadées:', photoUrls.length);
+      }
+
+      // ✅ ÉTAPE 2 : Créer la réponse avec les URLs uploadées
+      console.log('📤 Étape 2: Création de la réponse...');
+      if (onProgress) onProgress(0.9);
 
       const headers = await this.getHeaders();
       
@@ -47,11 +119,14 @@ class ResponseService {
         requestId,
         message: message.trim(),
         price: parseFloat(price),
-        photos: photos || []
+        photoUrls: photoUrls // ✅ CORRECTION CRITIQUE : Envoyer photoUrls au lieu de photos
       };
 
       console.log('🔗 URL:', `${this.baseUrl}`);
-      console.log('📋 Payload:', requestData);
+      console.log('📋 Payload:', {
+        ...requestData,
+        photoUrls: photoUrls.map(url => url.substring(0, 80) + '...')
+      });
 
       const response = await fetch(`${this.baseUrl}`, {
         method: 'POST',
@@ -63,6 +138,8 @@ class ResponseService {
 
       const data = await response.json();
       console.log('📦 Données reçues:', data);
+
+      if (onProgress) onProgress(1.0);
 
       if (response.ok) {
         console.log('✅ Réponse créée avec succès:', data.response?._id);
@@ -83,7 +160,7 @@ class ResponseService {
       console.error('❌ Erreur createResponse:', error);
       return {
         success: false,
-        error: 'Erreur de connexion. Vérifiez votre connexion internet.'
+        error: error.message || 'Erreur de connexion. Vérifiez votre connexion internet.'
       };
     }
   }

@@ -41,6 +41,7 @@ const RequestDetailScreen = ({ route, navigation }) => {
   // ✅ NOUVEAU : États pour la modale de réponse
   const [responseModalVisible, setResponseModalVisible] = useState(false);
   const [responseLoading, setResponseLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0); // ✅ AJOUT : Progress upload
   const [responseData, setResponseData] = useState({
     message: '',
     price: '',
@@ -129,6 +130,7 @@ const RequestDetailScreen = ({ route, navigation }) => {
     setResponseModalVisible(false);
     setResponseData({ message: '', price: '', photos: [] });
     setResponseErrors({});
+    setUploadProgress(0); // ✅ AJOUT : Reset progress
   };
 
   // ✅ NOUVEAU : Validation du formulaire de réponse
@@ -149,7 +151,7 @@ const RequestDetailScreen = ({ route, navigation }) => {
     return Object.keys(errors).length === 0;
   };
 
-  // ✅ NOUVEAU : Fonction pour envoyer la réponse
+  // ✅ CORRIGÉ : Fonction pour envoyer la réponse avec upload photos
   const submitResponse = async () => {
     console.log('📤 Tentative envoi réponse...');
     
@@ -159,20 +161,26 @@ const RequestDetailScreen = ({ route, navigation }) => {
 
     try {
       setResponseLoading(true);
+      setUploadProgress(0);
       
-      // ✅ NOUVEAU : Envoi réel via le service
       console.log('📋 Données réponse à envoyer:', {
         requestId,
         message: responseData.message,
         price: responseData.price,
-        photos: responseData.photos
+        photoCount: responseData.photos.length
       });
 
+      // ✅ CORRECTION CRITIQUE : Utiliser la nouvelle méthode avec upload
       const result = await ResponseService.createResponse(
         requestId,
         responseData.message,
         responseData.price,
-        responseData.photos
+        responseData.photos,
+        (progress) => {
+          // Callback de progress pour l'upload
+          setUploadProgress(Math.round(progress * 100));
+          console.log('📊 Progress upload réponse:', Math.round(progress * 100) + '%');
+        }
       );
 
       if (result.success) {
@@ -201,6 +209,7 @@ const RequestDetailScreen = ({ route, navigation }) => {
       Alert.alert('Erreur', 'Une erreur inattendue est survenue');
     } finally {
       setResponseLoading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -660,6 +669,29 @@ const RequestDetailScreen = ({ route, navigation }) => {
                 <Text style={styles.requestInfoAuthor}>Par {request.user.firstName} {request.user.lastName}</Text>
               </View>
 
+              {/* ✅ NOUVEAU : Indicateur de progress upload */}
+              {responseLoading && uploadProgress > 0 && (
+                <View style={styles.uploadProgressContainer}>
+                  <View style={styles.uploadProgressHeader}>
+                    <Ionicons name="cloud-upload-outline" size={20} color={colors.primary} />
+                    <Text style={styles.uploadProgressText}>
+                      Upload en cours... {uploadProgress}%
+                    </Text>
+                  </View>
+                  <View style={styles.progressBarContainer}>
+                    <View 
+                      style={[
+                        styles.progressBar, 
+                        { width: `${uploadProgress}%` }
+                      ]} 
+                    />
+                  </View>
+                  <Text style={styles.uploadProgressSubtext}>
+                    {uploadProgress < 80 ? 'Upload des photos...' : 'Finalisation...'}
+                  </Text>
+                </View>
+              )}
+
               {/* Formulaire de réponse */}
               <View style={styles.formSection}>
                 <Text style={styles.formLabel}>Votre message *</Text>
@@ -969,6 +1001,45 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text.secondary,
   },
+  
+  // ✅ NOUVEAU : Styles pour l'indicateur de progress
+  uploadProgressContainer: {
+    backgroundColor: colors.primary + '10',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.primary + '20',
+  },
+  uploadProgressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  uploadProgressText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.primary,
+    marginLeft: 8,
+  },
+  progressBarContainer: {
+    height: 8,
+    backgroundColor: colors.gray[200],
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 4,
+  },
+  uploadProgressSubtext: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    textAlign: 'center',
+  },
+  
   formSection: {
     marginBottom: 24,
   },
